@@ -1,0 +1,200 @@
+#include <chrono>
+#include <thread>
+#include <vector>
+#include <numeric>
+#include <atomic>
+#include <mutex>
+#include <algorithm>
+
+using namespace std::chrono_literals;
+
+#include <cpprest/http_msg.h>
+#include <wiringPi.h>
+
+#include "metronome.hpp"
+#include "rest.hpp"
+
+// Configurazione dei PIN Broadcom (BCM)
+#define LED_RED   17
+#define LED_GREEN 27
+#define BTN_MODE  23
+#define BTN_TAP   24
+#define SPEAKER   20
+
+// Stati del metronomo
+enum class Mode { PLAY, LEARN };
+
+// Variabili globali thread-safe per lo stato condiviso
+std::atomic<Mode> current_mode{ Mode::PLAY };
+std::atomic<size_t> current_bpm{ 0 };
+
+// Vettore e mutex per memorizzare i timestamp dei tap durante il Learn Mode
+std::vector<std::chrono::steady_clock::time_point> tap_times;
+std::mutex tap_mutex;
+
+// --- Gestione Endpoint REST ---
+
+// GET /bpm -> Restituisce il BPM corrente
+void get_bpm(web::http::http_request msg) {
+  web::json::value response = web::json::value::object();
+  response[U("bpm")] = web::json::value::number(current_bpm.load());
+  msg.reply(200, response);
+}
+
+// POST /bpm -> Permette di impostare un BPM via REST API
+void set_bpm(web::http::http_request msg) {
+  msg.extract_json().then([msg](web::json::value body) {
+    if (body.has_field(U("bpm")) && body[U("bpm")].is_number()) {
+      size_t new_bpm = body[U("bpm")].as_integer();
+      current_bpm.store(new_bpm);
+      msg.reply(200, web::json::value::string(U("BPM updated")));
+    }
+    else {
+      msg.reply(400, web::json::value::string(U("Invalid JSON body. Expected {'bpm': <number>}")));
+    }
+    }).wait();
+}
+
+// --- Thread LED Verde (Play Mode) ---
+void play_thread_func() {
+  while (true) {
+    size_t bpm = current_bpm.load();
+    Mode mode = current_mode.load();
+
+    if (mode == Mode::PLAY && bpm > 0) {
+      // Calcola la durata di un ciclo completo (ON + OFF) in millisecondi
+      // 60,000 ms / bpm = ms per battito
+      auto beat_duration = std::chrono::milliseconds(60000 / bpm);
+
+      // Accende il LED Verde per metà del periodo (o max 100ms per un pulso breve)
+      auto pulse_duration = std::min(beat_duration / 2, 100ms);
+      auto off_duration = beat_duration - pulse_duration;
+
+      digitalWrite(LED_GREEN, HIGH);
+      std::this_thread::sleep_for(pulse_duration);
+      digitalWrite(LED_GREEN, LOW);
+      std::this_thread::sleep_for(off_duration);
+    }
+    else {
+      // Spegne il LED Verde se siamo in LEARN mode o con BPM = 0
+      digitalWrite(LED_GREEN, LOW);
+      std::this_thread::sleep_for(50ms);
+    }
+  }
+}
+
+// --- Funzione per Calcolare il BPM ---
+void calculate_bpm() {
+  std::lock_guard<std::mutex> lock(tap_mutex);
+
+  // Almeno 4 tap richiesti per considerare valida la misurazione
+  if (tap_times.size() < 4) {
+    tap_times.clear();
+    return;
+  }
+
+  // Calcola le differenze di tempo tra tap consecutivi
+  std::vector<double> intervals_ms;
+  for (size_t i = 1; i < tap_times.size(); ++i) {
+    auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(
+      tap_times[i] - tap_times[i - 1]
+    ).count();
+    intervals_ms.push_back(static_cast<double>(diff));
+  }
+
+  // Media degli intervalli
+  double sum = std::accumulate(intervals_ms.begin(), intervals_ms.end(), 0.0);
+  double avg_interval_ms = sum / intervals_ms.size();
+
+  if (avg_interval_ms > 0) {
+    // Conversione intervallo medio (ms) -> BPM
+    size_t calculated_bpm = static_cast<size_t>(60000.0 / avg_interval_ms);
+    current_bpm.store(calculated_bpm);
+  }
+
+  tap_times.clear();
+}
+
+int main() {
+  // Inizializzazione WiringPi con pin BCM (Broadcom)
+  wiringPiSetupGpio();
+
+  pinMode(LED_RED, OUTPUT);
+  pinMode(LED_GREEN, OUTPUT);
+
+  // Configurazione pulsanti come INPUT
+  pinMode(BTN_MODE, INPUT);
+  pinMode(BTN_TAP, INPUT);
+
+  // Assicuriamoci che i LED partano spenti
+  digitalWrite(LED_RED, LOW);
+  digitalWrite(LED_GREEN, LOW);
+
+  // --- Configurazione Server REST ---
+  auto bpm_rest = rest::make_endpoint("/bpm");
+  bpm_rest.support(web::http::methods::GET, get_bpm);
+  bpm_rest.support(web::http::methods::POST, set_bpm);
+  bpm_rest.open().wait();
+
+  // Avvio del thread per il blink del LED verde (Play Mode)
+  std::thread play_thread(play_thread_func);
+  play_thread.detach();
+
+  // Stato precedente dei pulsanti per la rilevazione del fronte di salita (Rising Edge)
+  bool prev_btn_mode = LOW;
+  bool prev_btn_tap = LOW;
+
+  // --- Loop Principale (Polling dei Pulsanti) ---
+  while (true) {
+    bool curr_btn_mode = digitalRead(BTN_MODE);
+    bool curr_btn_tap = digitalRead(BTN_TAP);
+
+    // 1. Rilevazione pressione PB2 (BTN_MODE) -> Cambio Modalità
+    if (curr_btn_mode == HIGH && prev_btn_mode == LOW) {
+      if (current_mode.load() == Mode::PLAY) {
+        // Passaggio da PLAY a LEARN
+        printf("PREMUTO IL TASTO MODE: PASSAGGIO A MODALITA' LEARN IN CORSO...\n");
+        current_mode.store(Mode::LEARN);
+        digitalWrite(LED_RED, HIGH); // LED Rosso fisso durante il LEARN mode
+        {
+          std::lock_guard<std::mutex> lock(tap_mutex);
+          tap_times.clear();
+        }
+      }
+      else {
+        // Passaggio da LEARN a PLAY
+        printf("PREMUTO IL TASTO MODE: PASSAGGIO A MODALITA' PLAY\n");
+        calculate_bpm();
+        digitalWrite(LED_RED, LOW);
+        current_mode.store(Mode::PLAY);
+      }
+    }
+
+    // 2. Rilevazione pressione PB1 (BTN_TAP) in LEARN Mode
+    if (current_mode.load() == Mode::LEARN) {
+      printf("ENTRATO IN MODALITA' LEARN\n");
+      if (curr_btn_tap == HIGH && prev_btn_tap == LOW) {
+        // Registra il timestamp del tap
+        {
+          std::lock_guard<std::mutex> lock(tap_mutex);
+          tap_times.push_back(std::chrono::steady_clock::now());
+        }
+        printf("PREMUTO TASTO TAP\n");
+
+        // Feedback visivo: impulso spegnimento/riaccensione LED Rosso al tap
+        digitalWrite(LED_RED, LOW);
+        std::this_thread::sleep_for(50ms);
+        digitalWrite(LED_RED, HIGH);
+      }
+    }
+
+    // Salva lo stato dei pulsanti per il prossimo ciclo
+    prev_btn_mode = curr_btn_mode;
+    prev_btn_tap = curr_btn_tap;
+
+    // Piccola pausa per ridurre il carico CPU e fare de-bouncing software minimale
+    std::this_thread::sleep_for(15ms);
+  }
+
+  return 0;
+}
