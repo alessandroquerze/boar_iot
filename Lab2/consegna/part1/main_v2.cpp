@@ -6,6 +6,8 @@
 #include <mutex>
 #include <algorithm>
 #include <iostream>
+#include <deque>
+#include <csignal>
 
 using namespace std::chrono_literals;
 
@@ -15,38 +17,54 @@ using namespace std::chrono_literals;
 #include "metronome.hpp"
 #include "rest.hpp"
 
-// Broadcom (BCM) pin configuration
+// --- Pin configuration ---
 #define LED_RED   17
 #define LED_GREEN 27
 #define BTN_MODE  23
 #define BTN_TAP   24
 #define SPEAKER   20
 
-// Metronome states
+// --- Metronome states ---
 enum class Mode { PLAY, LEARN };
+std::atomic<bool> keep_running(true);
 
 Mode current_mode{ Mode::PLAY };
-size_t current_bpm{ 0 };
+size_t current_bpm = 60;
 
 // Tracking of the minimum and maximum BPM values
-size_t min_bpm{ 0 };
-size_t max_bpm{ 0 };
+size_t min_bpm = current_bpm;
+size_t max_bpm = current_bpm;
 
 // Vector to store tap timestamps during Learn Mode
-std::vector<std::chrono::steady_clock::time_point> tap_times(4);
-size_t k = 0;
-size_t changed_bpm{ 0 };
+std::deque<std::chrono::steady_clock::time_point> timestamps;
+size_t tap_times = 0;
+size_t changed_bpm = 1;
+
+// --- Captures the SIGNALS that end the program ---
+void signal_handler(int signal) {
+  if (signal == SIGINT || signal == SIGTERM) {
+    keep_running = false;
+  }
+}
+
+// --- Funtion that sets everything off when the program ends ---
+void cleanup_gpio() {
+  digitalWrite(LED_RED, LOW);
+  digitalWrite(LED_GREEN, LOW);
+  digitalWrite(SPEAKER, LOW);
+}
 
 // --- Helper function to update the Min/Max bounds ---
 void update_bpm_bounds(size_t new_bpm) {
   if (new_bpm == 0) return;
 
   // Update Min and Max BPM
-  size_t current_min = min_bpm.load();
-  if (new_bpm < min_bpm.load()) {
-    min_bpm.store(new_bpm);
-  } elif (new_bpm > max_bpm.load()) {
-    max_bpm.store(new_bpm);
+  size_t current_min = min_bpm;
+  if (new_bpm < min_bpm) {
+    min_bpm = new_bpm;
+  }
+  else if (new_bpm > max_bpm) {
+    max_bpm = new_bpm;
   }
 }
 
@@ -59,27 +77,29 @@ void reply_json(web::http::http_request& msg, web::http::status_code status, con
   msg.reply(response);
 }
 
-// --- GET /bpm/ & PUT /bpm/ ---
+// GET /bpm/ & PUT /bpm/
 void handle_bpm(web::http::http_request msg) {
   if (msg.method() == web::http::methods::GET) {
     web::json::value response = web::json::value::object();
-    response[U("bpm")] = web::json::value::number(current_bpm.load());
+    response[U("bpm")] = web::json::value::number(current_bpm);
     reply_json(msg, 200, response);
   }
   else if (msg.method() == web::http::methods::PUT) {
     msg.extract_json().then([msg](web::json::value body) mutable {
       if (body.has_field(U("bpm")) && body[U("bpm")].is_number()) {
         size_t new_bpm = body[U("bpm")].as_integer();
-        current_bpm.store(new_bpm);
+        current_bpm = new_bpm;
         update_bpm_bounds(new_bpm);
+        changed_bpm = 1;
 
         web::json::value response = web::json::value::object();
         response[U("bpm")] = web::json::value::number(new_bpm);
         reply_json(msg, 200, response);
-      } else {
+      }
+      else {
         reply_json(msg, 400, web::json::value::string(U("Invalid JSON body. Expected {'bpm': <number>}")));
       }
-    }).wait();
+      }).wait();
   }
   else {
     reply_json(msg, 405, web::json::value::string(U("Method Not Allowed")));
@@ -90,11 +110,11 @@ void handle_bpm(web::http::http_request msg) {
 void handle_bpm_min(web::http::http_request msg) {
   if (msg.method() == web::http::methods::GET) {
     web::json::value response = web::json::value::object();
-    response[U("min")] = web::json::value::number(min_bpm.load());
+    response[U("min")] = web::json::value::number(min_bpm);
     reply_json(msg, 200, response);
   }
   else if (msg.method() == web::http::methods::DEL) {
-    min_bpm.store(0);
+    min_bpm = 0;
     web::json::value response = web::json::value::object();
     response[U("min")] = web::json::value::number(0);
     reply_json(msg, 200, response);
@@ -108,11 +128,11 @@ void handle_bpm_min(web::http::http_request msg) {
 void handle_bpm_max(web::http::http_request msg) {
   if (msg.method() == web::http::methods::GET) {
     web::json::value response = web::json::value::object();
-    response[U("max")] = web::json::value::number(max_bpm.load());
+    response[U("max")] = web::json::value::number(max_bpm);
     reply_json(msg, 200, response);
   }
   else if (msg.method() == web::http::methods::DEL) {
-    max_bpm.store(0);
+    max_bpm = 0;
     web::json::value response = web::json::value::object();
     response[U("max")] = web::json::value::number(0);
     reply_json(msg, 200, response);
@@ -124,31 +144,32 @@ void handle_bpm_max(web::http::http_request msg) {
 
 // --- Green LED Thread (Play Mode) ---
 void play_thread_func() {
-  size_t bpm = current_bpm.load();
-  Mode mode = current_mode.load();
+  size_t bpm = current_bpm;
+  Mode mode = current_mode;
   auto beat_duration = 0;
   auto pulse_duration = 0;
   auto off_duration = 0;
+
   while (true) {
-    mode = current_mode.load();
+    mode = current_mode;
     if (mode == Mode::PLAY && bpm > 0) {
-      if(changed_bpm.load() == 1) {
+      if (changed_bpm == 1) {
         // Calculate the duration of a full cycle (ON + OFF) in ms
-        bpm = current_bpm.load();
-        beat_duration = std::chrono::milliseconds(60000 / bpm);
+        bpm = current_bpm;
+        beat_duration = 60000 / bpm;
 
         // Turn on the green LED for half the period (or max 100ms)
-        pulse_duration = std::min(beat_duration / 2, 100ms);
+        pulse_duration = std::min(beat_duration / 2, 100);
         off_duration = beat_duration - pulse_duration;
-        changed_bpm.store(0);
+        changed_bpm = 0;
       }
 
       digitalWrite(LED_GREEN, HIGH);
       digitalWrite(SPEAKER, HIGH);
-      std::this_thread::sleep_for(pulse_duration);
+      std::this_thread::sleep_for(std::chrono::milliseconds(pulse_duration));
       digitalWrite(LED_GREEN, LOW);
       digitalWrite(SPEAKER, LOW);
-      std::this_thread::sleep_for(off_duration);
+      std::this_thread::sleep_for(std::chrono::milliseconds(off_duration));
     }
     else {
       // Turn off the green LED and speaker if we are in LEARN mode or BPM = 0
@@ -162,30 +183,32 @@ void play_thread_func() {
 // --- BPM Calculation Function ---
 void calculate_bpm() {
   // At least 4 taps required for the measurement to be considered valid
-  if (k < 4) {
-    tap_times.clear();
-    k=0;
+  if (tap_times < 4) {
+    timestamps.clear();
+    tap_times = 0;
     return;
   }
+
   // Calculate the time differences between consecutive taps
   std::vector<double> intervals_ms;
   for (size_t i = 1; i < 4; ++i) {
     auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(
-      tap_times[i] - tap_times[i - 1]
+      timestamps[i] - timestamps[i - 1]
     ).count();
     intervals_ms.push_back(static_cast<double>(diff));
   }
+
   // Calculate the average of the intervals
   double sum = std::accumulate(intervals_ms.begin(), intervals_ms.end(), 0.0);
   double avg_interval_ms = sum / 4;
 
   if (avg_interval_ms > 0) {
     size_t calculated_bpm = static_cast<size_t>(60000.0 / avg_interval_ms);
-    current_bpm.store(calculated_bpm);
-    changed_bpm.store(1);
+    current_bpm = calculated_bpm;
+    changed_bpm = 1;
     update_bpm_bounds(calculated_bpm);
   }
-  tap_times.clear();
+  timestamps.clear();
 }
 
 int main() {
@@ -198,6 +221,10 @@ int main() {
   digitalWrite(LED_RED, LOW);
   digitalWrite(LED_GREEN, LOW);
   digitalWrite(SPEAKER, LOW);
+
+  // Handlers to catch the signals that end the program
+  std::signal(SIGINT, signal_handler);
+  std::signal(SIGTERM, signal_handler);
 
   // --- REST Server Endpoint Configuration ---
   auto bpm_rest = rest::make_endpoint("/bpm/");
@@ -224,43 +251,49 @@ int main() {
   bool prev_btn_tap = LOW;
 
   // --- Main Loop (Button Polling) ---
-  while (true) {
+  while (keep_running) {
     bool curr_btn_mode = digitalRead(BTN_MODE);
     bool curr_btn_tap = digitalRead(BTN_TAP);
 
     // Detect BTN_MODE press
     if (curr_btn_mode == HIGH && prev_btn_mode == LOW) {
-      if (current_mode.load() == Mode::PLAY) {
-        printf("MODE BUTTON PRESSED: SWITCHING TO LEARN MODE...\n");
-        current_mode.store(Mode::LEARN);
+      if (current_mode == Mode::PLAY) {
+        printf("BUTTON MODE PRESSED: SWITCHING TO LEARN MODE...\n");
+        current_mode = Mode::LEARN;
         digitalWrite(LED_RED, HIGH);
-        tap_times.clear();
-        k=0;
+        timestamps.clear();
+        tap_times = 0;
       }
       else {
-        printf("MODE BUTTON PRESSED: SWITCHING TO PLAY MODE\n");
+        printf("BUTTON MODE PRESSED: SWITCHING TO PLAY MODE\n");
         calculate_bpm();
         digitalWrite(LED_RED, LOW);
-        current_mode.store(Mode::PLAY);
+        current_mode = Mode::PLAY;
       }
     }
 
     // Detect BTN_TAP press in LEARN Mode
-    if (current_mode.load() == Mode::LEARN) {
+    if (current_mode == Mode::LEARN) {
       if (curr_btn_tap == HIGH && prev_btn_tap == LOW) {
-        tap_times[i % 4] = std::chrono::steady_clock::now();
-        k++;
-        printf("TAP BUTTON PRESSED\n");
+        if (tap_times >= 4) {
+          timestamps.pop_front();
+        }
+        timestamps.push_back(std::chrono::steady_clock::now());
+        tap_times++;
+        printf("BUTTON TAP PRESSED\n");
 
-        while (curr_btn_tap == HIGH)
-          digitalWrite(LED_RED, LOW);
+        digitalWrite(LED_RED, LOW);
+        std::this_thread::sleep_for(100ms);
         digitalWrite(LED_RED, HIGH);
       }
     }
-    
+
     prev_btn_mode = curr_btn_mode;
     prev_btn_tap = curr_btn_tap;
+
     std::this_thread::sleep_for(15ms);
   }
+
+  cleanup_gpio();
   return 0;
 }
