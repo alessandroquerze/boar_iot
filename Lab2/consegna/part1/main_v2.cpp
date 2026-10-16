@@ -25,9 +25,6 @@ using namespace std::chrono_literals;
 // Metronome states
 enum class Mode { PLAY, LEARN };
 
-// Thread-safe global variables for shared state
-//std::atomic<Mode> current_mode{ Mode::PLAY };
-//std::atomic<size_t> current_bpm{ 0 };
 Mode current_mode{ Mode::PLAY };
 size_t current_bpm{ 0 };
 
@@ -35,11 +32,10 @@ size_t current_bpm{ 0 };
 size_t min_bpm{ 0 };
 size_t max_bpm{ 0 };
 
-// Vector and mutex to store tap timestamps during Learn Mode
+// Vector to store tap timestamps during Learn Mode
 std::vector<std::chrono::steady_clock::time_point> tap_times(4);
 size_t k = 0;
 size_t changed_bpm{ 0 };
-//std::mutex tap_mutex;
 
 // --- Helper function to update the Min/Max bounds ---
 void update_bpm_bounds(size_t new_bpm) {
@@ -55,10 +51,6 @@ void update_bpm_bounds(size_t new_bpm) {
 }
 
 // --- REST Endpoint Handling ---
-
-// Replies with a JSON body, always adding the CORS header, which is
-// necessary because the dashboard (part2) is served from a different
-// origin than the device's port 8080.
 void reply_json(web::http::http_request& msg, web::http::status_code status, const web::json::value& body) {
   web::http::http_response response(status);
   response.headers().add(U("Access-Control-Allow-Origin"), U("*"));
@@ -67,7 +59,7 @@ void reply_json(web::http::http_request& msg, web::http::status_code status, con
   msg.reply(response);
 }
 
-// GET /bpm/ & PUT /bpm/
+// --- GET /bpm/ & PUT /bpm/ ---
 void handle_bpm(web::http::http_request msg) {
   if (msg.method() == web::http::methods::GET) {
     web::json::value response = web::json::value::object();
@@ -94,7 +86,7 @@ void handle_bpm(web::http::http_request msg) {
   }
 }
 
-// GET /bpm/min/ & DELETE /bpm/min/
+// --- GET /bpm/min/ & DELETE /bpm/min/ ---
 void handle_bpm_min(web::http::http_request msg) {
   if (msg.method() == web::http::methods::GET) {
     web::json::value response = web::json::value::object();
@@ -112,7 +104,7 @@ void handle_bpm_min(web::http::http_request msg) {
   }
 }
 
-// GET /bpm/max/ & DELETE /bpm/max/
+// --- GET /bpm/max/ & DELETE /bpm/max/ ---
 void handle_bpm_max(web::http::http_request msg) {
   if (msg.method() == web::http::methods::GET) {
     web::json::value response = web::json::value::object();
@@ -141,11 +133,11 @@ void play_thread_func() {
     mode = current_mode.load();
     if (mode == Mode::PLAY && bpm > 0) {
       if(changed_bpm.load() == 1) {
-        // Compute the duration of a full cycle (ON + OFF) in milliseconds
+        // Calculate the duration of a full cycle (ON + OFF) in ms
         bpm = current_bpm.load();
         beat_duration = std::chrono::milliseconds(60000 / bpm);
 
-        // Turn on the green LED for half the period (or max 100ms for a short pulse)
+        // Turn on the green LED for half the period (or max 100ms)
         pulse_duration = std::min(beat_duration / 2, 100ms);
         off_duration = beat_duration - pulse_duration;
         changed_bpm.store(0);
@@ -169,16 +161,13 @@ void play_thread_func() {
 
 // --- BPM Calculation Function ---
 void calculate_bpm() {
-  //std::lock_guard<std::mutex> lock(tap_mutex);
-
   // At least 4 taps required for the measurement to be considered valid
   if (k < 4) {
     tap_times.clear();
     k=0;
     return;
   }
-
-  // Compute the time differences between consecutive taps
+  // Calculate the time differences between consecutive taps
   std::vector<double> intervals_ms;
   for (size_t i = 1; i < 4; ++i) {
     auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -186,8 +175,7 @@ void calculate_bpm() {
     ).count();
     intervals_ms.push_back(static_cast<double>(diff));
   }
-
-  // Average of the intervals
+  // Calculate the average of the intervals
   double sum = std::accumulate(intervals_ms.begin(), intervals_ms.end(), 0.0);
   double avg_interval_ms = sum / 4;
 
@@ -197,23 +185,16 @@ void calculate_bpm() {
     changed_bpm.store(1);
     update_bpm_bounds(calculated_bpm);
   }
-
   tap_times.clear();
 }
 
 int main() {
-  // Initialize WiringPi with BCM (Broadcom) pin numbering
   wiringPiSetupGpio();
-
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(SPEAKER, OUTPUT);
-
-  // Configure buttons as INPUT
   pinMode(BTN_MODE, INPUT);
   pinMode(BTN_TAP, INPUT);
-
-  // Make sure the LEDs start off
   digitalWrite(LED_RED, LOW);
   digitalWrite(LED_GREEN, LOW);
   digitalWrite(SPEAKER, LOW);
@@ -238,7 +219,7 @@ int main() {
   std::thread play_thread(play_thread_func);
   play_thread.detach();
 
-  // Previous button states, used to detect the rising edge
+  // We want to know the previous state of the buttons to detect the rising edge
   bool prev_btn_mode = LOW;
   bool prev_btn_tap = LOW;
 
@@ -247,10 +228,9 @@ int main() {
     bool curr_btn_mode = digitalRead(BTN_MODE);
     bool curr_btn_tap = digitalRead(BTN_TAP);
 
-    // 1. Detect PB2 (BTN_MODE) press -> mode switch
+    // Detect BTN_MODE press
     if (curr_btn_mode == HIGH && prev_btn_mode == LOW) {
       if (current_mode.load() == Mode::PLAY) {
-        // Switching from PLAY to LEARN
         printf("MODE BUTTON PRESSED: SWITCHING TO LEARN MODE...\n");
         current_mode.store(Mode::LEARN);
         digitalWrite(LED_RED, HIGH);
@@ -258,7 +238,6 @@ int main() {
         k=0;
       }
       else {
-        // Switching from LEARN to PLAY
         printf("MODE BUTTON PRESSED: SWITCHING TO PLAY MODE\n");
         calculate_bpm();
         digitalWrite(LED_RED, LOW);
@@ -266,26 +245,22 @@ int main() {
       }
     }
 
-    // 2. Detect PB1 (BTN_TAP) press in LEARN Mode
+    // Detect BTN_TAP press in LEARN Mode
     if (current_mode.load() == Mode::LEARN) {
       if (curr_btn_tap == HIGH && prev_btn_tap == LOW) {
         tap_times[i % 4] = std::chrono::steady_clock::now();
         k++;
         printf("TAP BUTTON PRESSED\n");
 
-        // Visual feedback on the red LED
         while (curr_btn_tap == HIGH)
           digitalWrite(LED_RED, LOW);
         digitalWrite(LED_RED, HIGH);
       }
     }
-
-    // Update button states
+    
     prev_btn_mode = curr_btn_mode;
     prev_btn_tap = curr_btn_tap;
-
     std::this_thread::sleep_for(15ms);
   }
-
   return 0;
 }
