@@ -51,12 +51,12 @@ def end_beat_line():
 
 
 def on_connect(client, userdata, flags, reason_code, properties=None):
-    if reason_code != 0:
+    if reason_code.is_failure:
         print(f"Connection failed: {reason_code}", file=sys.stderr)
         return
     for topic in SUBSCRIBE_TOPICS:
         client.subscribe(topic, qos=1)
-    print(f"Connected. Subscribed to: {', '.join(SUBSCRIBE_TOPICS)}")
+    print(f"Connected to broker. Subscribed to: {', '.join(SUBSCRIBE_TOPICS)}")
 
 
 def on_message(client, userdata, msg):
@@ -92,7 +92,7 @@ def on_message(client, userdata, msg):
 
 
 def build_client(host, port):
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"monitor-{os.getpid()}")
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
     client.connect(host, port)
