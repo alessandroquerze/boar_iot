@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Metronome Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="card">
+    <header>
+      <h1>🎵 Metronome Dashboard</h1>
+      <p class="subtitle">Control your Raspberry Pi Metronome via MQTT</p>
+    </header>
+
+    <section class="connection">
+      <label for="host">Device address (Pi IP)</label>
+      <div class="row">
+        <input type="text" id="host" placeholder="e.g. 192.168.8.189" />
+        <button id="connectBtn" class="btn btn-secondary">Connect</button>
+      </div>
+      <div class="status-row">
+        <span id="connStatus" class="status status-unknown">Broker: not connected</span>
+        <span id="deviceStatus" class="status status-unknown">Device: unknown</span>
+      </div>
+    </section>
+
+    <section class="bpm-display">
+      <div class="pulse-dot" id="pulseDot"></div>
+      <div class="bpm-value" id="bpmValue">--</div>
+      <div class="bpm-label">BPM</div>
+      <div class="mode-row">
+        <span class="bound-label">Mode</span>
+        <span class="mode-value mode-unknown" id="modeValue">--</span>
+      </div>
+      <div class="row">
+        <button id="playModeBtn" class="btn btn-secondary btn-small">Play mode</button>
+        <button id="learnModeBtn" class="btn btn-secondary btn-small">Learn mode</button>
+        <button id="refreshBtn" class="btn btn-secondary btn-small">⟳ Reconnect</button>
+      </div>
+    </section>
+
+    <section class="bpm-set">
+      <label for="bpmInput">Set new BPM</label>
+      <div class="row">
+        <input type="number" id="bpmInput" min="0" max="400" placeholder="e.g. 120" />
+        <button id="setBtn" class="btn btn-primary">Set</button>
+      </div>
+      <input type="range" id="bpmSlider" min="0" max="240" value="0" />
+    </section>
+
+    <section class="bpm-bounds">
+      <div class="bound">
+        <span class="bound-label">Min BPM</span>
+        <span class="bound-value" id="minValue">--</span>
+        <div class="row">
+          <button id="gotoMinBtn" class="btn btn-secondary btn-small" disabled>Go to min</button>
+          <button id="resetMinBtn" class="btn btn-secondary btn-small">Reset</button>
+        </div>
+      </div>
+      <div class="bound">
+        <span class="bound-label">Max BPM</span>
+        <span class="bound-value" id="maxValue">--</span>
+        <div class="row">
+          <button id="gotoMaxBtn" class="btn btn-secondary btn-small" disabled>Go to max</button>
+          <button id="resetMaxBtn" class="btn btn-secondary btn-small">Reset</button>
+        </div>
+      </div>
+    </section>
+
+    <p id="message" class="message"></p>
+  </main>
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
