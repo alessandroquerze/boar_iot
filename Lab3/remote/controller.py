@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""CLI to publish commands to the Metronome device over MQTT.
-
-Usage:
-    controller.py bpm <n>
-    controller.py mode play|learn
-    controller.py reset min|max
-    controller.py                 (interactive mode)
+"""Interactive CLI to publish commands to the Metronome device over MQTT.
 
 Broker host/port default to localhost:1883, override with --host/--port
 or the MQTT_HOST/MQTT_PORT environment variables.
@@ -102,25 +96,11 @@ def main():
     parser.add_argument("--host", default=DEFAULT_HOST, help=f"broker host (default: {DEFAULT_HOST})")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"broker port (default: {DEFAULT_PORT})")
 
-    sub = parser.add_subparsers(dest="command")
-
-    bpm_p = sub.add_parser("bpm", help="set the BPM")
-    bpm_p.add_argument("value")
-
-    mode_p = sub.add_parser("mode", help="set the mode")
-    mode_p.add_argument("value", choices=["play", "learn"])
-
-    reset_p = sub.add_parser("reset", help="reset min or max BPM")
-    reset_p.add_argument("value", choices=["min", "max"])
-
     args = parser.parse_args()
 
     client = build_client(args.host, args.port)
     try:
-        if args.command:
-            dispatch(client, [args.command, args.value])
-        else:
-            interactive(client)
+        interactive(client)
     finally:
         client.loop_stop()
         client.disconnect()
