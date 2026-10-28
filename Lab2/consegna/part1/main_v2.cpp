@@ -200,7 +200,7 @@ void calculate_bpm() {
 
   // Calculate the average of the intervals
   double sum = std::accumulate(intervals_ms.begin(), intervals_ms.end(), 0.0);
-  double avg_interval_ms = sum / 4;
+  double avg_interval_ms = sum / 3;
 
   if (avg_interval_ms > 0) {
     size_t calculated_bpm = static_cast<size_t>(60000.0 / avg_interval_ms);
