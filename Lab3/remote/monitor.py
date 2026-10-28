@@ -4,11 +4,6 @@
 Usage:
     monitor.py [--host HOST] [--port PORT]
 
-Subscribes with QoS 1 to:
-    metronome/boar/state/#
-    metronome/boar/event/#
-    metronome/boar/status
-
 Broker host/port default to localhost:1883, override with --host/--port
 or the MQTT_HOST/MQTT_PORT environment variables.
 """
@@ -95,7 +90,7 @@ def build_client(host, port):
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
-    client.connect(host, port)
+    client.connect(host, port, 60)
     return client
 
 
