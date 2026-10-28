@@ -125,16 +125,6 @@ Prefix: `metronome/boar/`. All payloads are JSON.
   `reset_min`, `reset_max`). Each one publishes its `state/*` topic, so a local button press and
   a remote command always leave the device in the same, visible state.
 
-## Changes from Lab 2 feedback
-
-- **BPM average fix.** N taps give N-1 intervals; the average now divides by
-  `intervals.size()`, never a hard-coded `/4` (the old code under-reported BPM by ~25%).
-- **"Go to min" / "Go to max" buttons** on the dashboard, implemented remote-side only: they
-  publish `cmd/set_bpm` with the last value received on `state/min` / `state/max` (no new
-  topic), and are disabled while that value is 0/unknown.
-- **Red LED behaviour kept**: stays on through learn mode, briefly off on each tap. The tempo
-  slider is also kept.
-
 ## File structure
 
 ```
