@@ -7,7 +7,6 @@
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
-#include <mutex>
 #include <numeric>
 #include <string>
 #include <thread>
@@ -48,18 +47,28 @@ void cleanup_gpio() {
   digitalWrite(SPEAKER, LOW);
 }
 
-// Atomics + mutex: MQTT callbacks run on libmosquitto's own thread, so plain
-// globals would not be safe here.
+// Atomics: current_bpm/current_mode/min_bpm/max_bpm/beat_seq are read by the
+// play thread and on_connect, so plain globals would not be safe for those.
 std::atomic<Mode> current_mode{ Mode::PLAY };
 std::atomic<size_t> current_bpm{ 0 };
 std::atomic<size_t> min_bpm{ 0 };
 std::atomic<size_t> max_bpm{ 0 };
 std::atomic<size_t> beat_seq{ 0 };
 
+// Only ever touched from the main thread (button loop + drained pending_*
+// requests), so no synchronization needed.
 std::vector<std::chrono::steady_clock::time_point> tap_times;
-std::mutex tap_mutex;
 
 struct mosquitto* mosq = nullptr;
+
+// on_message (libmosquitto thread) only writes these; the main loop drains
+// them with exchange() and calls the real functions, keeping every state
+// change and every tap_times access on the main thread.
+enum class PendingMode { NONE, PLAY, LEARN };
+std::atomic<long> pending_bpm{ -1 };
+std::atomic<PendingMode> pending_mode{ PendingMode::NONE };
+std::atomic<bool> pending_reset_min{ false };
+std::atomic<bool> pending_reset_max{ false };
 
 // Tracks delivery of the shutdown offline publish (see main()).
 std::atomic<int> pending_mid{ -1 };
@@ -117,20 +126,18 @@ void publish_event_tap(size_t count) {
 void update_bpm_bounds(size_t new_bpm) {
   if (new_bpm == 0) return;
 
+  // Main thread is the only writer now, so a plain load/compare/store
+  // replaces the old CAS loop.
   size_t cur_min = min_bpm.load();
-  while (cur_min == 0 || new_bpm < cur_min) {
-    if (min_bpm.compare_exchange_weak(cur_min, new_bpm)) {
-      publish_state_min(new_bpm);
-      break;
-    }
+  if (cur_min == 0 || new_bpm < cur_min) {
+    min_bpm.store(new_bpm);
+    publish_state_min(new_bpm);
   }
 
   size_t cur_max = max_bpm.load();
-  while (new_bpm > cur_max) {
-    if (max_bpm.compare_exchange_weak(cur_max, new_bpm)) {
-      publish_state_max(new_bpm);
-      break;
-    }
+  if (new_bpm > cur_max) {
+    max_bpm.store(new_bpm);
+    publish_state_max(new_bpm);
   }
 }
 
@@ -145,12 +152,8 @@ void set_bpm(size_t bpm) {
 
 // N taps give N-1 intervals; dividing by intervals.size() (not a hard-coded 4)
 void calculate_bpm() {
-  std::vector<std::chrono::steady_clock::time_point> times;
-  {
-    std::lock_guard<std::mutex> lock(tap_mutex);
-    times = tap_times;
-    tap_times.clear();
-  }
+  std::vector<std::chrono::steady_clock::time_point> times = tap_times;
+  tap_times.clear();
 
   if (times.size() < 4) return;
 
@@ -172,10 +175,7 @@ void calculate_bpm() {
 void enter_learn() {
   current_mode.store(Mode::LEARN);
   digitalWrite(LED_RED, HIGH);
-  {
-    std::lock_guard<std::mutex> lock(tap_mutex);
-    tap_times.clear();
-  }
+  tap_times.clear();
   publish_state_mode(Mode::LEARN);
 }
 
@@ -200,12 +200,8 @@ void reset_max() {
 }
 
 void record_tap() {
-  size_t count;
-  {
-    std::lock_guard<std::mutex> lock(tap_mutex);
-    tap_times.push_back(std::chrono::steady_clock::now());
-    count = tap_times.size();
-  }
+  tap_times.push_back(std::chrono::steady_clock::now());
+  size_t count = tap_times.size();
   std::cout << "TAP BUTTON PRESSED" << std::endl;
 
   digitalWrite(LED_RED, LOW);
@@ -303,7 +299,7 @@ void on_message(struct mosquitto* m, void* obj, const struct mosquitto_message* 
       std::cout << "IGNORED cmd/set_bpm: bpm out of range " << bpm << std::endl;
       return;
     }
-    set_bpm(static_cast<size_t>(bpm));
+    pending_bpm.store(bpm);
   }
   else if (topic == TOPIC_PREFIX + "cmd/set_mode") {
     if (!body.contains("mode") || !body["mode"].is_string()) {
@@ -312,10 +308,10 @@ void on_message(struct mosquitto* m, void* obj, const struct mosquitto_message* 
     }
     std::string mode = body["mode"].get<std::string>();
     if (mode == "play") {
-      enter_play();
+      pending_mode.store(PendingMode::PLAY);
     }
     else if (mode == "learn") {
-      enter_learn();
+      pending_mode.store(PendingMode::LEARN);
     }
     else {
       std::cout << "IGNORED cmd/set_mode: unknown mode '" << mode << "'" << std::endl;
@@ -326,14 +322,14 @@ void on_message(struct mosquitto* m, void* obj, const struct mosquitto_message* 
       std::cout << "IGNORED cmd/reset_min: expected {'reset': true}" << std::endl;
       return;
     }
-    reset_min();
+    pending_reset_min.store(true);
   }
   else if (topic == TOPIC_PREFIX + "cmd/reset_max") {
     if (!body.contains("reset") || !body["reset"].is_boolean() || !body["reset"].get<bool>()) {
       std::cout << "IGNORED cmd/reset_max: expected {'reset': true}" << std::endl;
       return;
     }
-    reset_max();
+    pending_reset_max.store(true);
   }
 }
 
@@ -381,6 +377,19 @@ int main(int argc, char** argv) {
   bool prev_btn_tap = LOW;
 
   while (keep_running) {
+    // on_message only posts requests into pending_*; applying them here
+    // keeps every state change and every tap_times access on this one
+    // thread, so none of it needs a mutex.
+    long req_bpm = pending_bpm.exchange(-1);
+    if (req_bpm >= 0) set_bpm(static_cast<size_t>(req_bpm));
+
+    PendingMode req_mode = pending_mode.exchange(PendingMode::NONE);
+    if (req_mode == PendingMode::PLAY) enter_play();
+    else if (req_mode == PendingMode::LEARN) enter_learn();
+
+    if (pending_reset_min.exchange(false)) reset_min();
+    if (pending_reset_max.exchange(false)) reset_max();
+
     bool curr_btn_mode = digitalRead(BTN_MODE);
     bool curr_btn_tap = digitalRead(BTN_TAP);
 
