@@ -6,19 +6,19 @@ tap-to-tempo, min/max tracking), driven over a Mosquitto broker instead of HTTP.
 ## Architecture
 
 ```
-        ┌──────────────┐        MQTT (TCP 1883)        ┌──────────────────┐
-        │  device/      │◄─────────────────────────────►│                  │
-        │  (Pi, C++)    │                                │                  │
-        │  GPIO + LEDs  │        MQTT (TCP 1883)         │  Mosquitto       │
-        │  + speaker    │◄───────────┐                   │  broker (on Pi)  │
-        └──────────────┘             │                   │                  │
-                                      │  remote/monitor.py│                  │
-                                      │  remote/controller.py                │
-                                      │                   │                  │
-                                      └───────────────────┤                  │
-                                                           │  WebSockets      │
-                                      remote/dashboard/ ◄──┤  (port 9001)     │
-                                      (browser, MQTT.js)   └──────────────────┘
+        ┌──────────────┐        MQTT (TCP 1883)               ┌──────────────────┐
+        │  device/     │◄────────────────────────────────────►│                  │
+        │  (Pi, C++)   │                                      │                  │
+        │  GPIO + LEDs │    MQTT (TCP 1883)                   │  Mosquitto       │
+        │  + speaker   |◄────────────┐                        │  broker (on Pi)  │
+        └──────────────┘             │                        │                  │
+                                     │ remote/monitor.py      │                  │
+                                     │ remote/controller.py   |                  │
+                                     │                        │                  │
+                                     └────────────────────────┤                  │
+                                                              │  WebSockets      │
+                                         remote/dashboard/ ◄──┤  (port 9001)     │
+                                         (browser, MQTT.js)   └──────────────────┘
 ```
 
 - **device/** – runs on the Raspberry Pi, drives the GPIO (LEDs, speaker, buttons) and talks to
@@ -140,7 +140,6 @@ Prefix: `metronome/boar/`. All payloads are JSON.
 ```
 Lab3/
 ├── README.md
-├── CLAUDE.md
 ├── device/
 │   ├── main.cpp
 │   └── CMakeLists.txt
