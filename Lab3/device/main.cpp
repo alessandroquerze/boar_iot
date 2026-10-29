@@ -98,8 +98,6 @@ void publish_status(const char* status) {
   std::cout << "STATUS status=" << status << std::endl;
 }
 
-// QoS 0: high-rate ticks where losing one is harmless, since the next
-// beat/tap supersedes it immediately.
 void publish_event_beat(size_t bpm, size_t seq) {
   mqtt_publish("event/beat", { { "bpm", bpm },{ "seq", seq } }, 0, false);
 }
@@ -130,7 +128,6 @@ void set_bpm(size_t bpm) {
   publish_state_bpm(bpm);
 }
 
-// FARLO TORNARE A CONTROLLARE LA MEDIA DEGLI ULTIMI 4!!!
 void calculate_bpm() {
   // At least 4 taps required for the measurement to be considered valid
   if (tap_times < 4) {
@@ -318,8 +315,6 @@ int main(int argc, char** argv) {
   mosquitto_lib_init();
   mosq = mosquitto_new(nullptr, true, nullptr);
 
-  // LWT must be set before connect: an ungraceful disconnect (crash, network
-  // loss) makes the broker publish this on our behalf.
   json will_payload = { { "status", "offline" } };
   std::string will_body = will_payload.dump();
   std::string status_topic = TOPIC_PREFIX + "status";
