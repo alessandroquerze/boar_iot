@@ -153,7 +153,7 @@ Prefix: `metronome/boar/`. All payloads are JSON.
 | `state/max` | device → all | `{"max": 140}` | 1 | yes |
 | `event/beat` | device → all | `{"bpm": 120, "seq": 42}` | 0 | no |
 | `event/tap` | device → all | `{"count": 3}` | 0 | no |
-| `status` | device → all | `{"status": "online"}` / `{"status": "offline"}` | 1 | yes (LWT = offline) |
+| `status` | device → all | `{"status": "online"}` / `{"status": "offline"}` | 1 | yes |
 
 ## Design choices
 
