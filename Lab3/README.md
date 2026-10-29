@@ -67,12 +67,10 @@ Add a listener config at `/etc/mosquitto/conf.d/lab3.conf`:
 ```conf
 # /etc/mosquitto/conf.d/lab3.conf
 listener 1883
-protocol mqtt
+allow_anonymous true
 
 listener 9001
 protocol websockets
-
-allow_anonymous true
 ```
 
 Enable and start the service, then check it's healthy:
@@ -174,35 +172,17 @@ Prefix: `metronome/boar/`. All payloads are JSON.
 - **Single code path for mode/bpm/min/max changes.** Buttons (polled in the main loop) call
   `set_bpm`, `enter_learn`, `enter_play`, `reset_min`, `reset_max` directly. `on_message`
   (running on the libmosquitto thread) validates the incoming JSON and then calls those exact
-  same functions — it never touches GPIO or `state/*` publishing on its own path. Each function
-  only writes to the shared atomics and publishes the matching `state/*` topic, so a local
-  button press and a remote command always leave the device in the same, visible state.
+  same functions — it never touches GPIO or `state/*` publishing on its own path.
 - **Threading model.** Three threads run concurrently: the main loop (button polling), the play
   thread (beat timing/LED/speaker), and libmosquitto's own network thread (connect/message/
-  publish callbacks). Shared scalar state (`current_bpm`, `current_mode`, `min_bpm`, `max_bpm`)
-  is `std::atomic`, so the play thread and main loop can read it without locking. The one
-  exception is the tap-times vector, which isn't expressible as a single atomic and is guarded
-  by a small mutex held only long enough to push/copy/clear it. MQTT callbacks never block or
-  sleep — they validate, write a few atomics, and publish, then return immediately.
+  publish callbacks). MQTT callbacks never block or
+  sleep — they validate, write a few variables, and publish, then return immediately.
 
 ## Changes from Lab 2
 
-- **BPM average fix.** Lab 2 computed the average tap interval over a hard-coded window of 4
-  taps. Lab 3 keeps every tap recorded since entering Learn mode and divides by the actual
-  number of intervals (`N` taps → `N-1` intervals), so the average is correct regardless of how
-  many taps were recorded.
+- **BPM average fix.** The logic used to compute the mean bpm value was fixed, now the three intervals are indeed divided by 3
 - **"Go to min" / "Go to max" buttons.** New in the dashboard: one click re-sends the tracked
   min/max as the current BPM, instead of having to retype the number.
-- **Red LED + slider kept.** The Learn-mode red LED and the BPM slider from Lab 2 carry over
-  unchanged — they didn't need to change for the MQTT port.
-
-Two intentional differences from our Lab 2 v2 code:
-
-- **Starts at 0 BPM instead of 60.** 0 means "nothing set yet" and is a clearer signal (both to
-  us and to late-joining MQTT clients reading retained `state/bpm`) than an arbitrary default
-  that looks like a real tempo.
-- **All taps are averaged, not just the last 4.** Averaging the whole Learn-mode tap sequence
-  is less sensitive to a single mistimed tap than Lab 2's fixed 4-tap window.
 
 ## File structure
 
