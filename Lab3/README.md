@@ -1,7 +1,14 @@
 # Lab 3 – MQTT Metronome
 
+Demo video: <link>
+
 Port of the Lab 2 Metronome Thing from REST to MQTT. Same device behaviour (LEDs, speaker,
 tap-to-tempo, min/max tracking), driven over a Mosquitto broker instead of HTTP.
+
+## Topic prefix
+
+Our group (**boar**) publishes and subscribes everything under **`metronome/boar/`**. Every
+topic in this document and in [`topic_list.md`](topic_list.md) is relative to that prefix.
 
 ## Architecture
 
@@ -29,14 +36,31 @@ tap-to-tempo, min/max tracking), driven over a Mosquitto broker instead of HTTP.
 - **remote/monitor.py**, **remote/controller.py** – Python CLIs, talk MQTT over TCP 1883.
 - **remote/dashboard/** – static web page, talks MQTT over WebSockets (port 9001) via MQTT.js.
 
-## Mosquitto setup (on the Pi)
+## Install dependencies
 
-Install:
+**Broker** (on the Pi):
 
 ```bash
 sudo apt update
-sudo apt install mosquitto mosquitto-clients
+sudo apt install -y mosquitto mosquitto-clients python3-pip
 ```
+
+**Python** (monitor/controller, any machine):
+
+```bash
+python3 -m pip install --break-system-packages paho-mqtt
+```
+
+**Device build deps** (on the Pi):
+
+```bash
+sudo apt install -y libmosquitto-dev nlohmann-json3-dev wiringpi
+```
+
+**Dashboard**: no install — just a browser. It loads MQTT.js straight from unpkg
+(`https://unpkg.com/mqtt/dist/mqtt.min.js`), no build step or local `node_modules`.
+
+## Start the broker
 
 Add a listener config at `/etc/mosquitto/conf.d/lab3.conf`:
 
@@ -51,20 +75,34 @@ protocol websockets
 allow_anonymous true
 ```
 
-Restart and verify:
+Enable and start the service, then check it's healthy:
 
 ```bash
-sudo systemctl restart mosquitto
+sudo systemctl enable mosquitto
+sudo systemctl start mosquitto
+sudo systemctl status mosquitto
+```
+
+Verify both listeners are up:
+
+```bash
 ss -tlnp | grep mosquitto
 # expect two LISTEN lines: one on :1883, one on :9001
 ```
 
-## Build & run
-
-### Device (on the Pi)
+Quick round-trip test:
 
 ```bash
-sudo apt install libmosquitto-dev nlohmann-json3-dev wiringpi
+mosquitto_sub -h localhost -t 'metronome/boar/#' -v &
+mosquitto_pub -h localhost -t 'metronome/boar/test' -m 'hello'
+# the sub should print: metronome/boar/test hello
+```
+
+## Run the device client
+
+On the Pi:
+
+```bash
 cd device
 mkdir -p build && cd build
 cmake ..
@@ -72,21 +110,34 @@ make
 ./main [broker_host] [broker_port]   # defaults: localhost 1883
 ```
 
-### Monitor / Controller (any machine with network access to the Pi)
+Full details (GPIO pin table, expected startup log, how to stop it) are in
+[`device/README.md`](device/README.md).
+
+## Run the remote side
+
+**Monitor** (read-only, any machine with network access to the Pi):
 
 ```bash
-pip install paho-mqtt
 python3 remote/monitor.py --host 192.168.8.189
-python3 remote/controller.py --host 192.168.8.189 bpm 120
-python3 remote/controller.py --host 192.168.8.189 mode learn
-python3 remote/controller.py --host 192.168.8.189 reset min
-python3 remote/controller.py --host 192.168.8.189   # interactive mode
 ```
 
-### Dashboard
+**Controller** — interactive only:
 
-Open `remote/dashboard/index.html` in a browser (no build step). Enter the Pi's IP in the
-"Device address" field and click Connect — it talks to `ws://<ip>:9001`.
+```bash
+python3 remote/controller.py --host 192.168.8.189
+Metronome controller - interactive mode.
+Commands: bpm <n> | mode play|learn | reset min|max | quit
+> bpm 120
+Sent set_bpm: 120
+> mode learn
+Sent set_mode: learn
+> reset min
+Sent reset_min
+> quit
+```
+
+**Dashboard**: open `remote/dashboard/index.html` in a browser (no build step). Enter the Pi's
+IP in the "Device address" field and click Connect — it talks to `ws://<ip>:9001`.
 
 ## Topic contract
 
@@ -120,17 +171,47 @@ Prefix: `metronome/boar/`. All payloads are JSON.
   network loss makes the broker publish `offline` on the device's behalf. On every (re)connect
   the device also explicitly publishes `online` plus all four `state/*` topics, so reconnects
   self-heal without manual intervention.
-- **Single code path for mode/bpm/min/max changes.** The button-polling loop and the MQTT
-  `on_message` handler both call the same functions (`set_bpm`, `enter_learn`, `enter_play`,
-  `reset_min`, `reset_max`). Each one publishes its `state/*` topic, so a local button press and
-  a remote command always leave the device in the same, visible state.
+- **Single code path for mode/bpm/min/max changes.** Buttons (polled in the main loop) call
+  `set_bpm`, `enter_learn`, `enter_play`, `reset_min`, `reset_max` directly. `on_message`
+  (running on the libmosquitto thread) validates the incoming JSON and then calls those exact
+  same functions — it never touches GPIO or `state/*` publishing on its own path. Each function
+  only writes to the shared atomics and publishes the matching `state/*` topic, so a local
+  button press and a remote command always leave the device in the same, visible state.
+- **Threading model.** Three threads run concurrently: the main loop (button polling), the play
+  thread (beat timing/LED/speaker), and libmosquitto's own network thread (connect/message/
+  publish callbacks). Shared scalar state (`current_bpm`, `current_mode`, `min_bpm`, `max_bpm`)
+  is `std::atomic`, so the play thread and main loop can read it without locking. The one
+  exception is the tap-times vector, which isn't expressible as a single atomic and is guarded
+  by a small mutex held only long enough to push/copy/clear it. MQTT callbacks never block or
+  sleep — they validate, write a few atomics, and publish, then return immediately.
+
+## Changes from Lab 2
+
+- **BPM average fix.** Lab 2 computed the average tap interval over a hard-coded window of 4
+  taps. Lab 3 keeps every tap recorded since entering Learn mode and divides by the actual
+  number of intervals (`N` taps → `N-1` intervals), so the average is correct regardless of how
+  many taps were recorded.
+- **"Go to min" / "Go to max" buttons.** New in the dashboard: one click re-sends the tracked
+  min/max as the current BPM, instead of having to retype the number.
+- **Red LED + slider kept.** The Learn-mode red LED and the BPM slider from Lab 2 carry over
+  unchanged — they didn't need to change for the MQTT port.
+
+Two intentional differences from our Lab 2 v2 code:
+
+- **Starts at 0 BPM instead of 60.** 0 means "nothing set yet" and is a clearer signal (both to
+  us and to late-joining MQTT clients reading retained `state/bpm`) than an arbitrary default
+  that looks like a real tempo.
+- **All taps are averaged, not just the last 4.** Averaging the whole Learn-mode tap sequence
+  is less sensitive to a single mistimed tap than Lab 2's fixed 4-tap window.
 
 ## File structure
 
 ```
 Lab3/
 ├── README.md
+├── topic_list.md
 ├── device/
+│   ├── README.md
 │   ├── main.cpp
 │   └── CMakeLists.txt
 └── remote/

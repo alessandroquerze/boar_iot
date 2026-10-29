@@ -1,9 +1,9 @@
-```markdown
-# MQTT Topic Contract — Metronome (group: boar)
+# MQTT Metronome Topic Contract
 
 Prefix: `metronome/boar/`
 All payloads are JSON objects.
 
+```
 | Topic              | Direction      | Payload                              | QoS | Retained |
 |---------------------|----------------|---------------------------------------|-----|----------|
 | cmd/set_bpm         | remote → device| `{"bpm": 120}`                        | 1   | no       |
@@ -16,12 +16,12 @@ All payloads are JSON objects.
 | state/max           | device → all   | `{"max": 140}`                       | 1   | yes      |
 | event/beat          | device → all   | `{"bpm": 120, "seq": 42}`             | 0   | no       |
 | event/tap           | device → all   | `{"count": 3}`                        | 0   | no       |
-| status              | device → all   | `{"status": "online"}` / `{"status": "offline"}` | 1 | yes (LWT = offline) |
+| status              | device → all   | `{"status": "online"}` / `{"status": "offline"}` | 1 | yes |
+```
 
 ## Rules
 - Commands are never retained (a retained command would replay on every device reconnect).
 - State is always retained, so a late-joining client immediately sees current state.
 - The device publishes the matching `state/*` topic after every change, whether triggered by a button or by MQTT.
-- Invalid payloads (bad JSON, missing field, negative bpm, unknown mode) are logged and ignored — the device must not crash.
+- Invalid payloads (bad JSON, missing field, bpm outside 0–400, unknown mode) are logged and ignored — the device must not crash.
 - Remote clients never write to `state/*`; only the device does.
-```

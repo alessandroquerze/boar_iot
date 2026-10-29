@@ -1,8 +1,7 @@
 # Build:
 #   mkdir -p build && cd build && cmake .. && make
-# Run (broker host/port are optional, default localhost:1883):
+# Run: 
 #   ./main [broker_host] [broker_port]
-#   e.g. ./main 192.168.8.189 1883
 
 cmake_minimum_required(VERSION 3.10)
 project(main)

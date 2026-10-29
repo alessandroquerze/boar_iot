@@ -57,6 +57,12 @@ function updateGotoButtons() {
   gotoMaxBtn.disabled = !lastMax;
 }
 
+function updateBpmDisplay(bpm) {
+  bpmValue.textContent = bpm;
+  bpmInput.value = bpm;
+  bpmSlider.value = Math.min(bpm, bpmSlider.max);
+}
+
 function publish(topic, payload) {
   if (!client || !client.connected) {
     showMessage("Not connected to broker.", "error");
@@ -76,9 +82,7 @@ function handleMessage(topic, payloadStr) {
 
   switch (suffix) {
     case "state/bpm":
-      bpmValue.textContent = data.bpm;
-      bpmInput.value = data.bpm;
-      bpmSlider.value = Math.min(data.bpm, bpmSlider.max);
+      updateBpmDisplay(data.bpm);
       break;
     case "state/mode":
       modeValue.textContent = data.mode;
@@ -96,6 +100,9 @@ function handleMessage(topic, payloadStr) {
       break;
     case "event/beat":
       flashPulse();
+      if (data.bpm !== undefined && String(data.bpm) !== bpmValue.textContent) {
+        updateBpmDisplay(data.bpm);
+      }
       break;
     case "event/tap":
       showMessage(`Tap recorded (${data.count})`, "success");

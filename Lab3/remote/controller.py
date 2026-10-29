@@ -20,6 +20,7 @@ MAX_BPM = 400
 def publish(client, topic, payload):
     info = client.publish(TOPIC_PREFIX + topic, json.dumps(payload), qos=1, retain=False)
     info.wait_for_publish(timeout=5)
+    return info.is_published()
 
 
 def cmd_bpm(client, value):
@@ -31,8 +32,10 @@ def cmd_bpm(client, value):
     if bpm < 0 or bpm > MAX_BPM:
         print(f"Invalid BPM value: {bpm} (must be 0-{MAX_BPM})", file=sys.stderr)
         return
-    publish(client, "cmd/set_bpm", {"bpm": bpm})
-    print(f"Sent set_bpm: {bpm}")
+    if publish(client, "cmd/set_bpm", {"bpm": bpm}):
+        print(f"Sent set_bpm: {bpm}")
+    else:
+        print(f"Error: set_bpm {bpm} not acknowledged (no PUBACK)", file=sys.stderr)
 
 
 def cmd_mode(client, value):
@@ -40,8 +43,10 @@ def cmd_mode(client, value):
     if mode not in ("play", "learn"):
         print(f"Invalid mode: {value!r} (must be 'play' or 'learn')", file=sys.stderr)
         return
-    publish(client, "cmd/set_mode", {"mode": mode})
-    print(f"Sent set_mode: {mode}")
+    if publish(client, "cmd/set_mode", {"mode": mode}):
+        print(f"Sent set_mode: {mode}")
+    else:
+        print(f"Error: set_mode {mode} not acknowledged (no PUBACK)", file=sys.stderr)
 
 
 def cmd_reset(client, value):
@@ -49,8 +54,10 @@ def cmd_reset(client, value):
     if target not in ("min", "max"):
         print(f"Invalid reset target: {value!r} (must be 'min' or 'max')", file=sys.stderr)
         return
-    publish(client, f"cmd/reset_{target}", {"reset": True})
-    print(f"Sent reset_{target}")
+    if publish(client, f"cmd/reset_{target}", {"reset": True}):
+        print(f"Sent reset_{target}")
+    else:
+        print(f"Error: reset_{target} not acknowledged (no PUBACK)", file=sys.stderr)
 
 
 def dispatch(client, parts):
@@ -102,8 +109,8 @@ def main():
     try:
         interactive(client)
     finally:
-        client.loop_stop()
         client.disconnect()
+        client.loop_stop()
 
 
 if __name__ == "__main__":
