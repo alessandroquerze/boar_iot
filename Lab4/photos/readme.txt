@@ -8,6 +8,8 @@ MAI permettere ai due GND (cavi neri) delle alimentazioni di scollegarsi: si ris
 
 il cavo rosso e nero del usb NON DEVONO MAI TOCCARSI
 
+INFO ROUTER:
+se non funziona, fate "change network" perché ho impostato la mia rete di casa
 
 INFO SCATOLA/CIRCUITI:
 c'è un cavo giallo staccato da un lato, è normale l'ho usato per tenere giu il filo del motore
@@ -22,3 +24,4 @@ il file dentro il pi4 mds fa funzionare tutto e ha una logica in base alla tempe
 INFO BJT:
 
 c'è una foto che mostra C,B,E in caso servisse. ho usato quella e funziona (le resistenze sono anche quelle fondamentali in quel modo)
+
