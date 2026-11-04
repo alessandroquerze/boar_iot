@@ -13,8 +13,11 @@
 #define TEMP_MIN 20.0f
 #define TEMP_MAX 35.0f
 
-#define SERVO_MIN_PWM 100
-#define SERVO_MAX_PWM 200
+// Calibrazione servo (servocal.c): 1500 us = dritto = finestra chiusa,
+// 200 tick ogni 180 gradi. Il rinvio si blocca oltre i 50 gradi.
+#define SERVO_CLOSED_PWM 150
+#define SERVO_TICKS_180  200
+#define WINDOW_MAX_ANGLE 50
 
 // Limiti motore
 #define MOTOR_TEMP_MIN 25.0f
@@ -85,28 +88,27 @@ int read_dht11(float *temperature, float *humidity) {
     return 0;
 }
 
-// Temperatura -> angolo servo (0-180 gradi)
+// Temperatura -> apertura finestra (0-50 gradi)
 int temperature_to_angle(float temperature) {
     if (temperature <= TEMP_MIN)
         return 0;
 
     if (temperature >= TEMP_MAX)
-        return 180;
+        return WINDOW_MAX_ANGLE;
 
     float ratio =
         (temperature - TEMP_MIN) /
         (TEMP_MAX - TEMP_MIN);
 
-    return (int)(ratio * 180.0f + 0.5f);
+    return (int)(ratio * WINDOW_MAX_ANGLE + 0.5f);
 }
 
 // Controllo servo PWM hardware
 void set_servo_angle(int angle) {
     if (angle < 0) angle = 0;
-    if (angle > 180) angle = 180;
+    if (angle > WINDOW_MAX_ANGLE) angle = WINDOW_MAX_ANGLE;
 
-    int pwm = SERVO_MIN_PWM +
-        (angle * (SERVO_MAX_PWM - SERVO_MIN_PWM)) / 180;
+    int pwm = SERVO_CLOSED_PWM + (angle * SERVO_TICKS_180) / 180;
 
     pwmWrite(SERVO_PIN, pwm);
 }

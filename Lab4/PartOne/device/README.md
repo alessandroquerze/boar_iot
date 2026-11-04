@@ -11,7 +11,7 @@ All relationship logic lives in the Edge. This program executes exactly one serv
 | Pin | Device | Entity | Direction | Purpose |
 |-----|--------------------|-----------------|-----------|------------------------------|
 | 17  | DHT11 data | `ClimateSensor` | in/out | Bit-banged temperature + humidity |
-| 18  | Servo signal | `Window` | PWM ch0 | Window angle, 0–180° |
+| 18  | Servo signal | `Window` | PWM ch0 | Window angle, 0–50° |
 | 13  | Motor base (2N2222)| `Fan` | PWM ch1 | Fan speed, 0–75 % |
 
 wiringPi drives both PWM channels from one clock and `pwmSetRange()` writes both range
@@ -28,7 +28,9 @@ stutter rather than spin — see `../../test/pwm13.c`.
 | `ClimateSensor` | `Read_Humidity` | 0 | – | int % |
 | `Fan` | `Fan_On` | 1 | `speed` (0–75) | int applied speed |
 | `Fan` | `Fan_Off` | 0 | – | void |
-| `Window` | `Set_Window` | 1 | `angle` (0–180) | int applied angle |
+| `Fan` | `Read_Fan_Speed` | 0 | – | int speed (0–75) |
+| `Fan` | `Read_Fan_Status` | 0 | – | int (1 on / 0 off) |
+| `Window` | `Set_Window` | 1 | `angle` (0–50) | int applied angle |
 | `Window` | `Window_Close` | 0 | – | void |
 | `Window` | `Read_Window_Position` | 0 | – | int angle |
 
@@ -36,13 +38,51 @@ Inputs are integers and outputs are `int` or `void` throughout, because Part Two
 middleware accepts nothing else. Out-of-range inputs are clamped, not rejected; the reply
 reports the value actually applied.
 
-### Window position is remembered, not measured
+### Window arc and servo calibration
 
-A hobby servo has no position feedback and wiringPi cannot read a PWM register back, so
-`Read_Window_Position` reports the **last commanded** angle, persisted in `/tmp/window_angle`.
-A file rather than a variable because in Part Two each service is a separate Atlas bundle that
-shares no memory with the others. A read before any set — for instance after a reboot clears
-`/tmp` — returns 0, which is an assumption that the window is closed, not a measurement.
+Measured on the bench with `../../test/servocal.c`: 500 µs is 90° clockwise, 1500 µs straight,
+2500 µs 90° counter-clockwise. At 10 µs per duty tick that is **200 ticks per 180°**. The
+nominal 1–2 ms range most examples use covers only the middle half of this servo's travel and
+delivers roughly half the commanded angle.
+
+The window is **shut with the horn centred** and opens counter-clockwise until its linkage
+binds at 50°:
+
+```
+duty = 150 + angle * 200 / 180        angle clamped to 0–50
+  0° -> duty 150 -> 1500 µs (closed)
+ 25° -> duty 177 -> 1770 µs
+ 50° -> duty 205 -> 2050 µs (fully open)
+```
+
+So angle 0 is the centre of the servo's travel, not an end stop, and `Window_Close` drives
+1500 µs. Every program here stays inside that arc. The one exception is `servocal.c`, whose
+job is to find end stops — run it only with the horn **disconnected** from the linkage.
+
+### Actuator state is remembered, not measured
+
+A hobby servo has no position feedback, the fan has no tachometer, and wiringPi cannot read a
+PWM register back. So `Read_Window_Position`, `Read_Fan_Speed` and `Read_Fan_Status` all report
+the **last commanded** value, persisted in `/tmp/window_angle` and `/tmp/fan_speed`. Files
+rather than variables because in Part Two each service is a separate Atlas bundle that shares no
+memory with the others — `Read_Fan_Speed` genuinely cannot see anything `Fan_On` left behind.
+
+`Read_Fan_Status` derives from the same `/tmp/fan_speed` file as `Read_Fan_Speed`, reporting
+`speed > 0`, so the two can never contradict each other.
+
+A read before any set — for instance after a reboot clears `/tmp` — returns 0. That is an
+assumption that the window is shut and the fan is off, not a measurement.
+
+### Sensor reads are retried
+
+A single DHT11 read fails often enough to be a nuisance, so `read_dht11_retry` makes up to
+**3 attempts**, waiting **1.1 s** between them because the sensor needs roughly a second
+between conversions — an immediate retry just fails again. All three `ClimateSensor` services
+go through it.
+
+A service that exhausts all three attempts replies `"status":"Unsuccessful"` with
+`"Sensor read failed"`. Worst case it blocks the libmosquitto thread for about 2.3 s, well
+inside both the 60 s keepalive and the Edge's 10 s call timeout.
 
 ## Dependencies
 
@@ -72,7 +112,7 @@ sudo ./main [broker_host] [broker_port]   # defaults: localhost 1883
 ```
 MQTT connected
 STATUS status=online
-SERVICES published (8)
+SERVICES published (10)
 ```
 
 ## Calling a service by hand

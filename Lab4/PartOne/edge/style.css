@@ -196,12 +196,18 @@ input[type="number"] {
   padding: 20px;
 }
 
-input.arg {
-  width: 90px;
-  flex: none;
-  padding: 5px 8px;
-  font-size: 0.8rem;
-  margin-right: 6px;
+.catalogue tr.entity td {
+  padding-top: 16px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+}
+
+.catalogue tr.entity:first-child td {
+  padding-top: 4px;
 }
 
 /* --- Composition IDE --- */

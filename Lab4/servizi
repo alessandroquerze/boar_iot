@@ -11,3 +11,10 @@ lettura status (on/off)
 SERVO
 spostamento (pos finale)
 lettura posizione
+
+To update (dashboard edge IDE):
+
+- read_temp input letters (C and F) and not 0 and 1
+- run without then statement in the code only, remove the call column buttons (and subsequently input fiels)
+- calibrate_sensor fails many times, so maybe implement retry system for this and the other sensors (3 retries)
+- group functionalities by sensor to allow the users

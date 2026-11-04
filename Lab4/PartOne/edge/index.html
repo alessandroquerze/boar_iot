@@ -31,16 +31,14 @@
         <thead>
           <tr>
             <th>RPi</th>
-            <th>Entity</th>
             <th>Service</th>
             <th>#In</th>
             <th>Inputs</th>
             <th>Out</th>
-            <th></th>
           </tr>
         </thead>
         <tbody id="catalogueBody">
-          <tr><td colspan="7" class="empty">Waiting for the thing to advertise its services…</td></tr>
+          <tr><td colspan="5" class="empty">Waiting for the thing to advertise its services…</td></tr>
         </tbody>
       </table>
     </section>
@@ -49,7 +47,10 @@
       <label for="program">Composition IDE</label>
       <details class="help">
         <summary>Grammar</summary>
-        <pre>// order-based: B runs only after A succeeds. THEN may chain.
+        <pre>// a single call: RUN on its own, no THEN needed
+RUN  RPi1.Service_A(args)
+
+// order-based: B runs only after A succeeds. THEN may chain.
 RUN  RPi1.Service_A(args)
 THEN RPi1.Service_B(args)
 
@@ -58,7 +59,8 @@ IF   RPi1.Service_A(args) &gt; 28
 DO   RPi1.Service_B(args)
 ELSE RPi1.Service_C(args)
 
-Operators: &gt; &lt; &gt;= &lt;= == !=    Arguments are integers.
+Operators: &gt; &lt; &gt;= &lt;= == !=
+Arguments are integers. Read_Temp also accepts C and F for 0 and 1.
 A blank line separates statements. // starts a comment.</pre>
       </details>
       <textarea id="program" rows="13" spellcheck="false"></textarea>

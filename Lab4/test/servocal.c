@@ -1,5 +1,11 @@
 // Servo calibration helper.
 //
+// !! SCOLLEGA LA SQUADRETTA DAL RINVIO DELLA FINESTRA PRIMA DI USARLO !!
+// Questo e' l'unico programma che spazza l'intera corsa del servo: serve a
+// trovare i fine corsa, quindi supera i 50 gradi a cui il rinvio si blocca.
+// Con la finestra collegata il servo forzerebbe contro il fermo meccanico.
+// Tutti gli altri programmi restano dentro l'arco 0-50.
+//
 // The 1-2 ms pulse range is only nominal. Most hobby servos need roughly
 // 0.5-2.5 ms to reach their real end stops, so a 1-2 ms range yields about
 // half the expected travel. This program finds the true endpoints: type a
@@ -48,6 +54,9 @@ int main(void) {
     pwmSetMode(PWM_MODE_MS);
     pwmSetClock(PWM_CLOCK);
     pwmSetRange(PWM_RANGE);
+
+    printf("ATTENZIONE: la squadretta deve essere scollegata dal rinvio\n");
+    printf("della finestra, questo test supera i 50 gradi di apertura.\n\n");
 
     pwmWrite(SERVO_PIN, 1500 / US_PER_TICK);
     printf("Servo al centro (1500 us).\n");

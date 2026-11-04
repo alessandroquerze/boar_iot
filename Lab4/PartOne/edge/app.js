@@ -12,18 +12,33 @@ const DEFAULT_RPI = "RPi1";
 const CALL_TIMEOUT_MS = 10000;
 const STORAGE_KEY = "vss_host";
 
-const EXAMPLE_PROGRAM = `// order-based: B runs only after A succeeds
+// Symbolic argument values accepted by the IDE. The wire protocol and Atlas take
+// integers only, so these are translated before the call goes out.
+const ARG_ALIASES = { C: 0, F: 1 };
+
+// Rendered next to an input name in the catalogue, so the symbolic form is
+// discoverable without opening the grammar panel.
+const INPUT_HINTS = { F_or_C: "C|F" };
+
+const EXAMPLE_PROGRAM = `// a single call needs no THEN
+RUN  RPi1.Read_Humidity()
+
+// order-based: B runs only after A succeeds
 RUN  RPi1.Calibrate_Sensor()
-THEN RPi1.Read_Temp(0)
+THEN RPi1.Read_Temp(C)
 
 // order-based: set, then verify what was actually applied
-RUN  RPi1.Set_Window(120)
+RUN  RPi1.Set_Window(40)
 THEN RPi1.Read_Window_Position()
 
 // condition-based: B runs on A's returned value
-IF   RPi1.Read_Temp(0) > 28
+IF   RPi1.Read_Temp(C) > 28
 DO   RPi1.Fan_On(75)
 ELSE RPi1.Fan_Off()
+
+// the predicate can read an actuator back instead of a sensor
+IF   RPi1.Read_Fan_Status() == 0
+DO   RPi1.Fan_On(60)
 `;
 
 const hostInput = document.getElementById("host");
@@ -82,71 +97,58 @@ function addCell(row, text, className) {
   row.appendChild(cell);
 }
 
+function placeholderRow(text) {
+  const row = document.createElement("tr");
+  const cell = document.createElement("td");
+  cell.colSpan = 5;
+  cell.className = "empty";
+  cell.textContent = text;
+  row.appendChild(cell);
+  return row;
+}
+
+function entityRow(entity) {
+  const row = document.createElement("tr");
+  row.className = "entity";
+  const cell = document.createElement("td");
+  cell.colSpan = 5;
+  cell.textContent = entity;
+  row.appendChild(cell);
+  return row;
+}
+
+function describeInputs(spec) {
+  if (spec.inputs.length === 0) return "–";
+
+  return spec.inputs
+    .map((name) => (INPUT_HINTS[name] ? `${name} (${INPUT_HINTS[name]})` : name))
+    .join(", ");
+}
+
+// The catalogue is read-only: every invocation goes through the IDE, where a
+// bare RUN covers the single-call case.
 function renderCatalogue(services) {
   catalogueBody.replaceChildren();
 
   if (services.length === 0) {
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.colSpan = 7;
-    cell.className = "empty";
-    cell.textContent = "The thing advertised an empty catalogue.";
-    row.appendChild(cell);
-    catalogueBody.appendChild(row);
+    catalogueBody.appendChild(placeholderRow("The thing advertised an empty catalogue."));
     return;
   }
 
+  let currentEntity = null;
   for (const spec of services) {
+    if (spec.entity !== currentEntity) {
+      catalogueBody.appendChild(entityRow(spec.entity));
+      currentEntity = spec.entity;
+    }
+
     const row = document.createElement("tr");
     addCell(row, spec.rpi);
-    addCell(row, spec.entity);
     addCell(row, spec.name, "mono");
     addCell(row, String(spec.ninputs));
-
-    // One number box per declared input, so any service can be called ad hoc.
-    const inputsCell = document.createElement("td");
-    const boxes = [];
-    for (const name of spec.inputs) {
-      const box = document.createElement("input");
-      box.type = "number";
-      box.className = "arg";
-      box.placeholder = name;
-      box.title = name;
-      inputsCell.appendChild(box);
-      boxes.push(box);
-    }
-    if (boxes.length === 0) inputsCell.textContent = "–";
-    row.appendChild(inputsCell);
-
+    addCell(row, describeInputs(spec));
     addCell(row, spec.output);
-
-    const actionCell = document.createElement("td");
-    const button = document.createElement("button");
-    button.className = "btn btn-secondary btn-small";
-    button.textContent = "Call";
-    button.addEventListener("click", () => callFromRow(spec, boxes));
-    actionCell.appendChild(button);
-    row.appendChild(actionCell);
-
     catalogueBody.appendChild(row);
-  }
-}
-
-async function callFromRow(spec, boxes) {
-  const args = [];
-  for (const box of boxes) {
-    const value = parseInt(box.value, 10);
-    if (Number.isNaN(value)) {
-      showMessage(`${spec.name}: "${box.placeholder}" must be an integer.`, "error");
-      return;
-    }
-    args.push(value);
-  }
-
-  try {
-    await invoke(spec.rpi, spec.name, args);
-  } catch (err) {
-    log(`error: ${err.message}`, "error");
   }
 }
 
@@ -211,9 +213,16 @@ function parseCall(text) {
 
   if (trimmed !== "") {
     for (const piece of trimmed.split(",")) {
-      const value = parseInt(piece.trim(), 10);
-      if (Number.isNaN(value)) {
-        throw new Error(`argument "${piece.trim()}" is not an integer in "${text.trim()}"`);
+      const token = piece.trim();
+      const value = /^-?\d+$/.test(token)
+        ? parseInt(token, 10)
+        : ARG_ALIASES[token.toUpperCase()];
+
+      if (value === undefined) {
+        const known = Object.keys(ARG_ALIASES).join(", ");
+        throw new Error(
+          `argument "${token}" in "${text.trim()}" is neither an integer nor one of: ${known}`
+        );
       }
       args.push(value);
     }
@@ -235,7 +244,7 @@ function parseOrder(lines, firstRest) {
     calls.push(parseCall(match[2]));
   }
 
-  if (calls.length < 2) throw new Error("an order-based statement needs at least one THEN");
+  // A bare RUN is a valid one-call program; THEN is what makes it order-based.
   return { kind: "order", calls };
 }
 
@@ -316,21 +325,26 @@ function compare(left, op, right) {
 }
 
 // Call A, wait for its reply, and only continue down the chain if it succeeded.
+// With a single call there is no relationship to speak of, so say so.
 async function runOrder(statement) {
-  log(`[order-based] ${statement.calls.map(describe).join(" THEN ")}`, "info");
+  const single = statement.calls.length === 1;
+  log(single
+    ? `[single call] ${describe(statement.calls[0])}`
+    : `[order-based] ${statement.calls.map(describe).join(" THEN ")}`, "info");
 
   for (let i = 0; i < statement.calls.length; i++) {
     const call = statement.calls[i];
     const reply = await invoke(call.rpi, call.name, call.args);
 
     if (reply.status !== "Successful") {
+      if (single) return;
       const skipped = statement.calls.length - i - 1;
       log(`chain stopped: ${describe(call)} was unsuccessful, ${skipped} call(s) skipped`, "fail");
       return;
     }
   }
 
-  log("chain completed", "ok");
+  if (!single) log("chain completed", "ok");
 }
 
 // Call A, parse its result as an int, evaluate the predicate, then run exactly

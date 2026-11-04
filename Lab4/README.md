@@ -23,8 +23,8 @@ Legend: **done** = built and verified · **written** = code complete, not yet ru
 | Stage | What | Status |
 |---|---|---|
 | 0 | Repo restructured to `PartOne/` + `PartTwo/` | **done** |
-| 1 | Fan rewired to GPIO13, 50 Hz hardware PWM validated | **written** — needs the rewire + `test/pwm13.c` run |
-| 2 | `PartOne/device/main.cpp` — 8 services + MQTT server | **written** — compiles clean, dispatch verified against stubbed GPIO |
+| 1 | Fan rewired to GPIO13, 50 Hz hardware PWM validated | **partly done** — servo verified and calibrated; fan on GPIO13 still unconfirmed |
+| 2 | `PartOne/device/main.cpp` — 10 services + MQTT server | **written** — compiles clean, dispatch verified against stubbed GPIO |
 | 3 | `PartOne/edge/` — catalogue, mini-IDE, orchestrator | **written** — parser verified, not yet run against a live broker |
 | 4 | `PartOne/README` — distribution of effort | **todo** — needs everyone's full names |
 | 5 | `PartTwo/Atlas_IoTDDL.xml` | **todo** |
@@ -46,7 +46,7 @@ Tracks the assignment handout. Updated as each stage lands.
 |---|---|---|
 | 1.1 | Pick a feasible scenario using at least one sensor and one actuator | **done** — climate control: DHT11 + servo window + fan |
 | 1.2 | Wire all sensors and actuators to the Pi, write the C/C++ for each | **written** — `test/motdhtservo.c` proven; fan move to GPIO13 untested |
-| 1.3 | Test that sensors read and actuators drive | **todo** — stage 1 gate |
+| 1.3 | Test that sensors read and actuators drive | **partly done** — servo calibrated and driving its 0–50° window arc; fan and DHT11 unconfirmed |
 | 1.4 | RPi connects to the Edge and reports its services | **written** — retained `vss/boar/services` |
 | 1.5 | Each service reported as `(RPi id, name, #inputs, input names)` | **written** — verified in the stub harness |
 | 1.6 | Edge displays the services on a web dashboard | **written** — catalogue table in `PartOne/edge/` |
@@ -90,7 +90,7 @@ Tracks the assignment handout. Updated as each stage lands.
         ┌──────────────────┐                              ┌──────────────────┐
         │ PartOne/device/  │   MQTT (TCP 1883)            │                  │
         │ (Pi, C++)        │◄────────────────────────────►│  Mosquitto       │
-        │ 8 services       │                              │  broker (on Pi)  │
+        │ 10 services      │                              │  broker (on Pi)  │
         │ DHT11/servo/fan  │                              │                  │
         └──────────────────┘                              │  WebSockets      │
                                    PartOne/edge/  ◄───────┤  (port 9001)     │
@@ -116,6 +116,11 @@ deliberately uses MQTT rather than a socket server so that TCP 6668 stays free f
 Both PWM channels share one clock and one range in wiringPi, so the servo's 50 Hz requirement
 fixes the fan's frequency too. See `PartOne/device/README.md` for what that costs.
 
+The window is shut with the servo horn centred (1500 µs) and opens counter-clockwise to a
+mechanical limit of **50°**, so `Set_Window` takes 0–50 and angle 0 is mid-travel rather than
+an end stop. Only `test/servocal.c` sweeps past that, and it must be run with the horn
+disconnected from the linkage.
+
 Safety notes for the rig (propeller hazard, the two supply grounds) are in `photos/readme.txt`.
 
 ## Services
@@ -127,12 +132,21 @@ Safety notes for the rig (propeller hazard, the two supply grounds) are in `phot
 | `ClimateSensor` | `Read_Humidity` | 0 | – | int % |
 | `Fan` | `Fan_On` | 1 | `speed` (0–75) | int applied speed |
 | `Fan` | `Fan_Off` | 0 | – | void |
-| `Window` | `Set_Window` | 1 | `angle` (0–180) | int applied angle |
+| `Fan` | `Read_Fan_Speed` | 0 | – | int speed (0–75) |
+| `Fan` | `Read_Fan_Status` | 0 | – | int (1 on / 0 off) |
+| `Window` | `Set_Window` | 1 | `angle` (0–50) | int applied angle |
 | `Window` | `Window_Close` | 0 | – | void |
 | `Window` | `Read_Window_Position` | 0 | – | int angle |
 
 Every input is an integer and every output is `int` or `void`, because Atlas accepts nothing
-else — so the Part One bodies drop into the Part Two IoT-DDL almost unchanged.
+else — so the Part One bodies drop into the Part Two IoT-DDL almost unchanged. The mini-IDE
+additionally accepts `Read_Temp(C)` and `Read_Temp(F)`, but that is Edge-side sugar: the alias
+is resolved to `0`/`1` before the call goes on the wire, since Atlas parses inputs with `stol`.
+
+Neither actuator can be read back from hardware, so `Read_Fan_Speed`, `Read_Fan_Status` and
+`Read_Window_Position` report the last commanded value from `/tmp/fan_speed` and
+`/tmp/window_angle`. Sensor reads are retried up to 3 times, 1.1 s apart, because the DHT11
+fails a single read often. Details in `PartOne/device/README.md`.
 
 ## Topic contract (Part One)
 
@@ -167,18 +181,25 @@ catalogue fills from the retained message; press **Load examples** in the IDE an
 ## Mini-IDE grammar
 
 ```
+// a single call: RUN on its own, no THEN needed
+RUN  RPi1.Read_Humidity()
+
 // order-based: B runs only after A succeeds. THEN may chain.
 RUN  RPi1.Calibrate_Sensor()
-THEN RPi1.Read_Temp(0)
+THEN RPi1.Read_Temp(C)
 
 // condition-based: B runs on A's returned value. ELSE is optional.
-IF   RPi1.Read_Temp(0) > 28
+IF   RPi1.Read_Temp(C) > 28
 DO   RPi1.Fan_On(75)
 ELSE RPi1.Fan_Off()
 ```
 
-Operators `> < >= <= == !=`. Arguments are integers. A blank line separates statements, `//`
-starts a comment, and the `RPiX.` prefix is optional with one Pi but kept in the grammar.
+Operators `> < >= <= == !=`. Arguments are integers, with `C`/`F` accepted for `Read_Temp`'s
+`F_or_C`. A blank line separates statements, `//` starts a comment, and the `RPiX.` prefix is
+optional with one Pi but kept in the grammar.
+
+The catalogue panel is read-only — every invocation goes through the IDE, where a bare `RUN`
+covers the single-call case. Services are grouped by entity.
 
 ## File structure
 
@@ -189,7 +210,7 @@ Lab4/
 ├── PartOne/
 │   ├── README                 # distribution of effort            (todo)
 │   ├── device/
-│   │   ├── main.cpp           # 8 services + MQTT service server
+│   │   ├── main.cpp           # 10 services + MQTT service server
 │   │   ├── CMakeLists.txt
 │   │   └── README.md          # pin map, services, build, run
 │   └── edge/
@@ -202,6 +223,7 @@ Lab4/
 ├── test/
 │   ├── motor.c                # bare motor on/off
 │   ├── motdhtservo.c          # DHT11 + servo + motor, pre-rewire
-│   └── pwm13.c                # stage 1 gate: fan on GPIO13
+│   ├── pwm13.c                # stage 1 gate: fan on GPIO13
+│   └── servocal.c             # interactive servo pulse-width calibration
 └── photos/                    # circuit photos + safety notes
 ```

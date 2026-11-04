@@ -22,9 +22,12 @@
 #define PWM_CLOCK    192
 #define PWM_RANGE    2000
 
-// 1 ms and 2 ms pulses out of the 20 ms frame.
-#define SERVO_MIN_PWM 100
-#define SERVO_MAX_PWM 200
+// Calibrazione servo (servocal.c): 1500 us = dritto = finestra chiusa,
+// 200 tick ogni 180 gradi. Il rinvio della finestra si blocca oltre i 50
+// gradi, quindi anche questo test resta dentro quell'arco.
+#define SERVO_CLOSED_PWM 150
+#define SERVO_TICKS_180  200
+#define WINDOW_MAX_ANGLE 50
 
 #define FAN_MAX_PCT  75
 
@@ -37,10 +40,9 @@ void stop(int sig) {
 
 int angle_to_pwm(int angle) {
     if (angle < 0) angle = 0;
-    if (angle > 180) angle = 180;
+    if (angle > WINDOW_MAX_ANGLE) angle = WINDOW_MAX_ANGLE;
 
-    return SERVO_MIN_PWM +
-        (angle * (SERVO_MAX_PWM - SERVO_MIN_PWM)) / 180;
+    return SERVO_CLOSED_PWM + (angle * SERVO_TICKS_180) / 180;
 }
 
 int pct_to_pwm(int pct) {
@@ -76,13 +78,13 @@ int main(void) {
     pwmSetRange(PWM_RANGE);
 
     pwmWrite(FAN_PIN, 0);
-    pwmWrite(SERVO_PIN, angle_to_pwm(90));
-    printf("Servo parcheggiato a 90 gradi, ventola ferma.\n");
+    pwmWrite(SERVO_PIN, angle_to_pwm(25));
+    printf("Servo parcheggiato a 25 gradi (meta arco), ventola ferma.\n");
     printf("Controlla che il servo tenga la posizione durante tutto il test.\n\n");
     delay(2000);
 
     // Phase 1: ramp the fan and note where it starts turning cleanly.
-    printf("--- Fase 1: rampa ventola (servo fermo a 90) ---\n");
+    printf("--- Fase 1: rampa ventola (servo fermo a 25) ---\n");
     int steps[] = { 0, 10, 20, 30, 40, 50, 60, 70, 75 };
     int n_steps = sizeof(steps) / sizeof(steps[0]);
 
@@ -95,7 +97,7 @@ int main(void) {
 
     // Phase 2: move the servo while the fan runs, to check interference both ways.
     printf("\n--- Fase 2: servo in movimento con ventola al 75%% ---\n");
-    int angles[] = { 0, 180, 0, 180, 90 };
+    int angles[] = { 0, 50, 0, 50, 25 };
     int n_angles = sizeof(angles) / sizeof(angles[0]);
 
     for (int i = 0; i < n_angles && running; i++) {
@@ -107,7 +109,7 @@ int main(void) {
 
     // Phase 3: fan duty changes while the servo holds, the direction that matters
     // most since pwmSetClock/pwmSetRange are re-run per service call under Atlas.
-    printf("\n--- Fase 3: ventola variabile con servo fermo a 90 ---\n");
+    printf("\n--- Fase 3: ventola variabile con servo fermo a 25 ---\n");
     printf("  (il servo deve restare immobile)\n");
 
     for (int i = 0; i < 6 && running; i++) {

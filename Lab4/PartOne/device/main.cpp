@@ -38,16 +38,29 @@ using json = nlohmann::json;
 #define PWM_CLOCK  192
 #define PWM_RANGE  2000
 
-// 1 ms and 2 ms pulses out of the 20 ms frame.
-#define SERVO_MIN_PWM 100
-#define SERVO_MAX_PWM 200
+// Servo calibration from test/servocal.c: 500 us is 90 deg clockwise, 1500 us
+// straight, 2500 us 90 deg counter-clockwise. At 10 us per tick that is 200
+// ticks for 180 deg of travel.
+#define SERVO_TICKS_180  200
+
+// The window is shut with the horn centred and opens counter-clockwise. Its
+// linkage binds past 50 deg, so everything that drives GPIO18 clamps there.
+#define SERVO_CLOSED_PWM 150
+#define WINDOW_MAX_ANGLE 50
 
 #define FAN_MAX_PCT 75
 
-// The servo gives no position feedback and wiringPi cannot read a PWM register
-// back, so Read_Window_Position reports the last commanded angle from here.
-// Atlas bundles cannot share memory, hence a file rather than a variable.
+// The DHT11 fails a single read often enough to be a nuisance, and it needs
+// about a second between conversions, so an immediate retry just fails again.
+#define DHT_ATTEMPTS 3
+#define DHT_RETRY_MS 1100
+
+// Neither actuator can be read back: the servo has no position feedback, the
+// fan has no tachometer, and wiringPi's PWM API is write-only. Both readers
+// therefore report the last commanded value from these files. Atlas bundles
+// cannot share memory, hence files rather than variables.
 static const char* WINDOW_STATE_FILE = "/tmp/window_angle";
+static const char* FAN_STATE_FILE = "/tmp/fan_speed";
 
 static const std::string TOPIC_PREFIX = "vss/boar/";
 static const std::string RPI_ID = "RPi-1";
@@ -84,26 +97,26 @@ void pwm_setup() {
   pwmSetRange(PWM_RANGE);
 }
 
-// --- Window position state ---
+// --- Actuator state, shared by both readers ---
 
-void write_window_angle(int angle) {
-  FILE* f = fopen(WINDOW_STATE_FILE, "w");
+void write_state_int(const char* path, int value) {
+  FILE* f = fopen(path, "w");
   if (f == nullptr) return;
-  fprintf(f, "%d", angle);
+  fprintf(f, "%d", value);
   fclose(f);
 }
 
-int read_window_angle() {
-  FILE* f = fopen(WINDOW_STATE_FILE, "r");
+int read_state_int(const char* path, int max) {
+  FILE* f = fopen(path, "r");
   if (f == nullptr) return 0;
 
-  int angle = 0;
-  if (fscanf(f, "%d", &angle) != 1) angle = 0;
+  int value = 0;
+  if (fscanf(f, "%d", &value) != 1) value = 0;
   fclose(f);
 
-  if (angle < 0) angle = 0;
-  if (angle > 180) angle = 180;
-  return angle;
+  if (value < 0) value = 0;
+  if (value > max) value = max;
+  return value;
 }
 
 // --- DHT11 (bit-banged, from test/motdhtservo.c) ---
@@ -166,6 +179,20 @@ int read_dht11(int* temperature, int* humidity) {
   return 0;
 }
 
+// Ritenta la lettura: il DHT11 sbaglia spesso al primo colpo e vuole circa un
+// secondo fra due conversioni, quindi fra un tentativo e l'altro si aspetta.
+// Nel caso peggiore blocca ~2.3 s, dentro il timeout di 10 s dell'Edge.
+int read_dht11_retry(int* temperature, int* humidity) {
+  for (int attempt = 0; attempt < DHT_ATTEMPTS; attempt++) {
+    if (attempt > 0) delay(DHT_RETRY_MS);
+
+    if (read_dht11(temperature, humidity) == 0)
+      return 0;
+  }
+
+  return -1;
+}
+
 // --- Service results ---
 // status/description reuse Atlas's own vocabulary so that the Edge orchestrator
 // and the Part Two demo application can apply identical relationship logic.
@@ -192,7 +219,7 @@ Result svc_calibrate_sensor() {
   // Priming read: the DHT11's first conversion after an idle period often fails,
   // so this is what an order-based "A THEN B" is meant to guard.
   int temperature, humidity;
-  if (read_dht11(&temperature, &humidity) != 0)
+  if (read_dht11_retry(&temperature, &humidity) != 0)
     return failure("Sensor read failed");
 
   return success(1);
@@ -202,7 +229,7 @@ Result svc_read_temp(int f_or_c) {
   gpio_setup();
 
   int temperature, humidity;
-  if (read_dht11(&temperature, &humidity) != 0)
+  if (read_dht11_retry(&temperature, &humidity) != 0)
     return failure("Sensor read failed");
 
   if (f_or_c == 1)
@@ -215,7 +242,7 @@ Result svc_read_humidity() {
   gpio_setup();
 
   int temperature, humidity;
-  if (read_dht11(&temperature, &humidity) != 0)
+  if (read_dht11_retry(&temperature, &humidity) != 0)
     return failure("Sensor read failed");
 
   return success(humidity);
@@ -231,6 +258,7 @@ Result svc_fan_on(int speed) {
   pwm_setup();
   pwmWrite(FAN_PIN, speed * PWM_RANGE / 100);
 
+  write_state_int(FAN_STATE_FILE, speed);
   return success(speed);
 }
 
@@ -241,21 +269,30 @@ Result svc_fan_off() {
   pwm_setup();
   pwmWrite(FAN_PIN, 0);
 
+  write_state_int(FAN_STATE_FILE, 0);
   return success();
+}
+
+Result svc_read_fan_speed() {
+  return success(read_state_int(FAN_STATE_FILE, FAN_MAX_PCT));
+}
+
+// Derived from the same file as Read_Fan_Speed, so the two cannot disagree.
+Result svc_read_fan_status() {
+  return success(read_state_int(FAN_STATE_FILE, FAN_MAX_PCT) > 0 ? 1 : 0);
 }
 
 Result svc_set_window(int angle) {
   gpio_setup();
 
   if (angle < 0) angle = 0;
-  if (angle > 180) angle = 180;
+  if (angle > WINDOW_MAX_ANGLE) angle = WINDOW_MAX_ANGLE;
 
   pinMode(SERVO_PIN, PWM_OUTPUT);
   pwm_setup();
-  pwmWrite(SERVO_PIN,
-    SERVO_MIN_PWM + (angle * (SERVO_MAX_PWM - SERVO_MIN_PWM)) / 180);
+  pwmWrite(SERVO_PIN, SERVO_CLOSED_PWM + (angle * SERVO_TICKS_180) / 180);
 
-  write_window_angle(angle);
+  write_state_int(WINDOW_STATE_FILE, angle);
   return success(angle);
 }
 
@@ -264,14 +301,14 @@ Result svc_window_close() {
 
   pinMode(SERVO_PIN, PWM_OUTPUT);
   pwm_setup();
-  pwmWrite(SERVO_PIN, SERVO_MIN_PWM);
+  pwmWrite(SERVO_PIN, SERVO_CLOSED_PWM);
 
-  write_window_angle(0);
+  write_state_int(WINDOW_STATE_FILE, 0);
   return success();
 }
 
 Result svc_read_window_position() {
-  return success(read_window_angle());
+  return success(read_state_int(WINDOW_STATE_FILE, WINDOW_MAX_ANGLE));
 }
 
 // --- Service catalogue ---
@@ -290,6 +327,8 @@ const std::vector<ServiceSpec> CATALOGUE = {
   { "ClimateSensor", "Read_Humidity",        {},         "int"  },
   { "Fan",           "Fan_On",               {"speed"},  "int"  },
   { "Fan",           "Fan_Off",              {},         "void" },
+  { "Fan",           "Read_Fan_Speed",       {},         "int"  },
+  { "Fan",           "Read_Fan_Status",      {},         "int"  },
   { "Window",        "Set_Window",           {"angle"},  "int"  },
   { "Window",        "Window_Close",         {},         "void" },
   { "Window",        "Read_Window_Position", {},         "int"  },
@@ -315,6 +354,8 @@ Result dispatch(const std::string& name, const std::vector<int>& inputs) {
   if (name == "Read_Humidity")        return svc_read_humidity();
   if (name == "Fan_On")               return svc_fan_on(inputs[0]);
   if (name == "Fan_Off")              return svc_fan_off();
+  if (name == "Read_Fan_Speed")       return svc_read_fan_speed();
+  if (name == "Read_Fan_Status")      return svc_read_fan_status();
   if (name == "Set_Window")           return svc_set_window(inputs[0]);
   if (name == "Window_Close")         return svc_window_close();
   if (name == "Read_Window_Position") return svc_read_window_position();
