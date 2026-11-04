@@ -1,0 +1,13 @@
+Servizi
+DHT11:
+lettura temperatura (C e F)
+lettura umidità
+
+VENTOLA
+accensione (velocità)
+spegnimento
+lettura status (on/off)
+
+SERVO
+spostamento (pos finale)
+lettura posizione
