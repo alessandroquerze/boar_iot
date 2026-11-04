@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Metronome Dashboard</title>
+  <title>Smart Space Edge — Lab 4</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="card">
     <header>
-      <h1>🎵 Metronome Dashboard</h1>
-      <p class="subtitle">Control your Raspberry Pi Metronome via MQTT</p>
+      <h1>Smart Space Edge</h1>
+      <p class="subtitle">Service catalogue and composition IDE for the RPi thing</p>
     </header>
 
     <section class="connection">
@@ -25,47 +25,53 @@
       </div>
     </section>
 
-    <section class="bpm-display">
-      <div class="pulse-dot" id="pulseDot"></div>
-      <div class="bpm-value" id="bpmValue">--</div>
-      <div class="bpm-label">BPM</div>
-      <div class="mode-row">
-        <span class="bound-label">Mode</span>
-        <span class="mode-value mode-unknown" id="modeValue">--</span>
-      </div>
+    <section>
+      <label>Advertised services</label>
+      <table class="catalogue">
+        <thead>
+          <tr>
+            <th>RPi</th>
+            <th>Entity</th>
+            <th>Service</th>
+            <th>#In</th>
+            <th>Inputs</th>
+            <th>Out</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="catalogueBody">
+          <tr><td colspan="7" class="empty">Waiting for the thing to advertise its services…</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <label for="program">Composition IDE</label>
+      <details class="help">
+        <summary>Grammar</summary>
+        <pre>// order-based: B runs only after A succeeds. THEN may chain.
+RUN  RPi1.Service_A(args)
+THEN RPi1.Service_B(args)
+
+// condition-based: B runs on A's returned value. ELSE is optional.
+IF   RPi1.Service_A(args) &gt; 28
+DO   RPi1.Service_B(args)
+ELSE RPi1.Service_C(args)
+
+Operators: &gt; &lt; &gt;= &lt;= == !=    Arguments are integers.
+A blank line separates statements. // starts a comment.</pre>
+      </details>
+      <textarea id="program" rows="13" spellcheck="false"></textarea>
       <div class="row">
-        <button id="playModeBtn" class="btn btn-secondary btn-small">Play mode</button>
-        <button id="learnModeBtn" class="btn btn-secondary btn-small">Learn mode</button>
-        <button id="refreshBtn" class="btn btn-secondary btn-small">⟳ Reconnect</button>
+        <button id="runBtn" class="btn btn-primary">Run program</button>
+        <button id="exampleBtn" class="btn btn-secondary">Load examples</button>
+        <button id="clearLogBtn" class="btn btn-secondary">Clear log</button>
       </div>
     </section>
 
-    <section class="bpm-set">
-      <label for="bpmInput">Set new BPM</label>
-      <div class="row">
-        <input type="number" id="bpmInput" min="0" max="400" placeholder="e.g. 120" autocomplete="off" />
-        <button id="setBtn" class="btn btn-primary">Set</button>
-      </div>
-      <input type="range" id="bpmSlider" min="0" max="240" value="0" autocomplete="off" />
-    </section>
-
-    <section class="bpm-bounds">
-      <div class="bound">
-        <span class="bound-label">Min BPM</span>
-        <span class="bound-value" id="minValue">--</span>
-        <div class="row">
-          <button id="gotoMinBtn" class="btn btn-secondary btn-small" disabled>Go to min</button>
-          <button id="resetMinBtn" class="btn btn-secondary btn-small">Reset</button>
-        </div>
-      </div>
-      <div class="bound">
-        <span class="bound-label">Max BPM</span>
-        <span class="bound-value" id="maxValue">--</span>
-        <div class="row">
-          <button id="gotoMaxBtn" class="btn btn-secondary btn-small" disabled>Go to max</button>
-          <button id="resetMaxBtn" class="btn btn-secondary btn-small">Reset</button>
-        </div>
-      </div>
+    <section>
+      <label>Output</label>
+      <div id="log" class="log"></div>
     </section>
 
     <p id="message" class="message"></p>
