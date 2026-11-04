@@ -1,7 +1,7 @@
 # Build:
 #   mkdir -p build && cd build && cmake .. && make
-# Run: 
-#   ./main [broker_host] [broker_port]
+# Run (GPIO needs root):
+#   sudo ./main [broker_host] [broker_port]
 
 cmake_minimum_required(VERSION 3.10)
 project(main)
