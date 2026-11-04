@@ -31,14 +31,21 @@ THEN RPi1.Read_Temp(C)
 RUN  RPi1.Set_Window(40)
 THEN RPi1.Read_Window_Position()
 
-// condition-based: B runs on A's returned value
-IF   RPi1.Read_Temp(C) > 28
+// condition-based: compound test, several commands, a nested IF
+IF   RPi1.Read_Temp(C) > 28 AND RPi1.Read_Humidity() > 60
 DO   RPi1.Fan_On(75)
+     RPi1.Set_Window(40)
+     IF   RPi1.Read_Fan_Status() == 1
+     DO   RPi1.Read_Fan_Speed()
+     END
 ELSE RPi1.Fan_Off()
+     RPi1.Window_Close()
+END
 
-// the predicate can read an actuator back instead of a sensor
-IF   RPi1.Read_Fan_Status() == 0
+// OR, and a predicate that reads an actuator back instead of a sensor
+IF   RPi1.Read_Fan_Status() == 0 OR RPi1.Read_Window_Position() > 20
 DO   RPi1.Fan_On(60)
+END
 `;
 
 const hostInput = document.getElementById("host");
@@ -76,10 +83,12 @@ function showMessage(text, kind = "") {
   message.className = `message ${kind}`;
 }
 
-function log(text, kind = "") {
+// depth indents nested statements so the structure of an IF inside an IF stays
+// readable; .log-line keeps the leading spaces via white-space: pre-wrap.
+function log(text, kind = "", depth = 0) {
   const line = document.createElement("div");
   line.className = `log-line log-${kind}`;
-  line.textContent = `${new Date().toLocaleTimeString()}  ${text}`;
+  line.textContent = `${new Date().toLocaleTimeString()}  ${"  ".repeat(depth)}${text}`;
   logPanel.appendChild(line);
   logPanel.scrollTop = logPanel.scrollHeight;
 }
@@ -154,7 +163,7 @@ function renderCatalogue(services) {
 
 // --- Service calls ---
 
-function invoke(rpi, name, args) {
+function invoke(rpi, name, args, depth = 0) {
   return new Promise((resolve, reject) => {
     if (!client || !client.connected) {
       reject(new Error("not connected to the broker"));
@@ -167,8 +176,8 @@ function invoke(rpi, name, args) {
       reject(new Error(`timeout waiting for ${name}`));
     }, CALL_TIMEOUT_MS);
 
-    pending.set(id, { resolve, timer });
-    log(`call  ${rpi}.${name}(${args.join(", ")})`, "call");
+    pending.set(id, { resolve, timer, depth });
+    log(`call  ${rpi}.${name}(${args.join(", ")})`, "call", depth);
     client.publish(
       `${TOPIC_PREFIX}call`,
       JSON.stringify({ id, service: name, inputs: args }),
@@ -192,7 +201,7 @@ function handleReply(data) {
   const ok = data.status === "Successful";
   const shown = data.result === null || data.result === undefined ? "no output" : data.result;
   log(`reply ${data.service} -> ${data.status}: ${ok ? shown : data.description}`,
-      ok ? "ok" : "fail");
+      ok ? "ok" : "fail", entry.depth);
 
   entry.resolve(data);
 }
@@ -200,7 +209,7 @@ function handleReply(data) {
 // --- Parser ---
 
 const CALL_RE = /^(?:([A-Za-z0-9_-]+)\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)$/;
-const KEYWORD_RE = /^(RUN|THEN|IF|DO|ELSE)\b\s*(.*)$/i;
+const KEYWORD_RE = /^(RUN|THEN|IF|DO|ELSE|END)\b\s*(.*)$/i;
 const TEST_RE = /^(.*?)\s*(>=|<=|==|!=|>|<)\s*(-?\d+)$/;
 
 function parseCall(text) {
@@ -233,81 +242,173 @@ function parseCall(text) {
   return { rpi: rpi || DEFAULT_RPI, name, args };
 }
 
-function parseOrder(lines, firstRest) {
-  const calls = [parseCall(firstRest)];
+// A predicate is "call op int". Several of them combine with AND and OR, with
+// AND binding tighter. There are no grouping parentheses: they could not be
+// told apart from a call's own parentheses, as in Read_Temp(C). Nest an IF to
+// group instead.
+function parsePredicate(text) {
+  const match = TEST_RE.exec(text.trim());
+  if (!match) throw new Error(`expected "<call> <op> <int>", got: "${text.trim()}"`);
 
-  for (const line of lines.slice(1)) {
-    const match = KEYWORD_RE.exec(line);
-    if (!match || match[1].toUpperCase() !== "THEN") {
-      throw new Error(`expected THEN after RUN, got: "${line}"`);
+  return {
+    kind: "predicate",
+    call: parseCall(match[1]),
+    op: match[2],
+    value: parseInt(match[3], 10),
+  };
+}
+
+// Normalised to an OR of ANDs so the evaluator only ever walks two levels, even
+// for a lone predicate.
+function parseCondition(text) {
+  if (text.trim() === "") throw new Error("IF needs a condition");
+
+  const pieces = text.split(/\s+(AND|OR)\s+/i);
+  const orTerms = [];
+  let andTerms = [parsePredicate(pieces[0])];
+
+  for (let i = 1; i < pieces.length; i += 2) {
+    const operator = pieces[i].toUpperCase();
+    const predicate = parsePredicate(pieces[i + 1]);
+
+    if (operator === "AND") {
+      andTerms.push(predicate);
+    } else {
+      orTerms.push({ kind: "and", terms: andTerms });
+      andTerms = [predicate];
     }
-    calls.push(parseCall(match[2]));
+  }
+
+  orTerms.push({ kind: "and", terms: andTerms });
+  return { kind: "or", terms: orTerms };
+}
+
+// --- Line cursor ---
+// Statements can nest, so the parser walks a flat line list with a cursor
+// rather than slicing the source into independent blocks.
+
+function peek(cursor) {
+  return cursor.i < cursor.lines.length ? cursor.lines[cursor.i] : null;
+}
+
+function peekKeyword(cursor) {
+  const line = peek(cursor);
+  if (line === null) return null;
+  const match = KEYWORD_RE.exec(line);
+  return match ? match[1].toUpperCase() : null;
+}
+
+// Consumes a keyword whose line continues with a body statement. When something
+// follows on the same line (DO RPi1.Fan_On(75)) the remainder is left in place
+// as the current line, so an inline statement and one on the following line
+// parse identically.
+function takeKeyword(cursor) {
+  const match = KEYWORD_RE.exec(cursor.lines[cursor.i]);
+  const rest = match[2].trim();
+
+  if (rest === "") cursor.i++;
+  else cursor.lines[cursor.i] = rest;
+
+  return rest;
+}
+
+// Consumes the whole line and returns what followed its keyword. Used where the
+// remainder belongs to the keyword itself rather than being a statement, as the
+// condition does in "IF <condition>".
+function takeKeywordLine(cursor) {
+  const match = KEYWORD_RE.exec(cursor.lines[cursor.i]);
+  cursor.i++;
+  return match[2].trim();
+}
+
+function takeCall(cursor, context) {
+  const line = peek(cursor);
+  if (line === null) throw new Error(`${context} is missing its service call`);
+
+  const call = parseCall(line);
+  cursor.i++;
+  return call;
+}
+
+function parseOrder(cursor) {
+  takeKeyword(cursor);                       // RUN
+  const calls = [takeCall(cursor, "RUN")];
+
+  while (peekKeyword(cursor) === "THEN") {
+    takeKeyword(cursor);
+    calls.push(takeCall(cursor, "THEN"));
   }
 
   // A bare RUN is a valid one-call program; THEN is what makes it order-based.
   return { kind: "order", calls };
 }
 
-function parseCondition(lines, firstRest) {
-  const test = TEST_RE.exec(firstRest);
-  if (!test) throw new Error(`expected "IF <call> <op> <int>", got: "IF ${firstRest}"`);
+function parseConditional(cursor) {
+  const condition = parseCondition(takeKeywordLine(cursor));
 
-  const statement = {
-    kind: "condition",
-    test: parseCall(test[1]),
-    op: test[2],
-    value: parseInt(test[3], 10),
-    consequent: null,
-    alternative: null,
-  };
+  if (peekKeyword(cursor) !== "DO") {
+    throw new Error(`expected DO after IF, got: "${peek(cursor) ?? "end of program"}"`);
+  }
+  takeKeyword(cursor);
+  const consequent = parseBlock(cursor, ["ELSE", "END"]);
 
-  for (const line of lines.slice(1)) {
-    const match = KEYWORD_RE.exec(line);
-    if (!match) throw new Error(`expected DO or ELSE, got: "${line}"`);
-
-    const keyword = match[1].toUpperCase();
-    if (keyword === "DO") {
-      if (statement.consequent) throw new Error("only one DO per IF");
-      statement.consequent = parseCall(match[2]);
-    } else if (keyword === "ELSE") {
-      if (statement.alternative) throw new Error("only one ELSE per IF");
-      statement.alternative = parseCall(match[2]);
-    } else {
-      throw new Error(`expected DO or ELSE, got "${keyword}"`);
-    }
+  let alternative = [];
+  if (peekKeyword(cursor) === "ELSE") {
+    takeKeyword(cursor);
+    alternative = parseBlock(cursor, ["END"]);
   }
 
-  if (!statement.consequent) throw new Error("an IF statement needs a DO");
-  return statement;
+  if (peekKeyword(cursor) !== "END") {
+    throw new Error(`expected END to close IF, got: "${peek(cursor) ?? "end of program"}"`);
+  }
+  takeKeyword(cursor);
+
+  if (consequent.length === 0) throw new Error("an IF statement needs at least one command after DO");
+  return { kind: "condition", test: condition, consequent, alternative };
 }
 
-function parseStatement(lines) {
-  const head = KEYWORD_RE.exec(lines[0]);
-  if (!head) throw new Error(`a statement must start with RUN or IF: "${lines[0]}"`);
+function parseStatement(cursor) {
+  const keyword = peekKeyword(cursor);
 
-  const keyword = head[1].toUpperCase();
-  if (keyword === "RUN") return parseOrder(lines, head[2]);
-  if (keyword === "IF") return parseCondition(lines, head[2]);
-  throw new Error(`"${keyword}" cannot start a statement`);
+  if (keyword === "RUN") return parseOrder(cursor);
+  if (keyword === "IF") return parseConditional(cursor);
+
+  // ELSE, END and THEN only ever appear inside a statement, so meeting one here
+  // means the block it belonged to was never opened.
+  if (keyword === "ELSE" || keyword === "END") {
+    throw new Error(`"${keyword}" without a matching IF`);
+  }
+  if (keyword === "THEN") throw new Error('"THEN" without a matching RUN');
+  if (keyword !== null) throw new Error(`"${keyword}" cannot start a statement`);
+
+  // A bare service call is a statement, so body lines need no RUN.
+  const call = parseCall(cursor.lines[cursor.i]);
+  cursor.i++;
+  return { kind: "order", calls: [call] };
 }
 
-// Strips comments, then groups the remaining lines into statements on blank lines.
+// Reads statements until one of the stop keywords or the end of the program.
+function parseBlock(cursor, stopKeywords) {
+  const statements = [];
+
+  while (peek(cursor) !== null && !stopKeywords.includes(peekKeyword(cursor))) {
+    statements.push(parseStatement(cursor));
+  }
+
+  return statements;
+}
+
+// Comments, blank lines and indentation are all insignificant: block structure
+// comes from DO/ELSE/END, not from layout.
 function parseProgram(source) {
-  const blocks = [];
-  let current = [];
+  const lines = source
+    .split("\n")
+    .map((line) => line.replace(/\/\/.*$/, "").trim())
+    .filter((line) => line !== "");
 
-  for (const raw of source.split("\n")) {
-    const line = raw.replace(/\/\/.*$/, "").trim();
-    if (line === "") {
-      if (current.length > 0) blocks.push(current);
-      current = [];
-      continue;
-    }
-    current.push(line);
-  }
-  if (current.length > 0) blocks.push(current);
-
-  return blocks.map(parseStatement);
+  // No stop keywords at the top level: a stray ELSE or END is reported by
+  // parseStatement rather than silently ending the program.
+  return parseBlock({ lines, i: 0 }, []);
 }
 
 // --- Orchestrator ---
@@ -324,55 +425,116 @@ function compare(left, op, right) {
   }
 }
 
+function describePredicate(predicate) {
+  return `${describe(predicate.call)} ${predicate.op} ${predicate.value}`;
+}
+
+function describeCondition(expr) {
+  return expr.terms
+    .map((andTerm) => andTerm.terms.map(describePredicate).join(" AND "))
+    .join(" OR ");
+}
+
+// Raised when a predicate's service call cannot yield a number to compare, so
+// the condition has no truth value and the whole statement is abandoned.
+class PredicateError extends Error {}
+
 // Call A, wait for its reply, and only continue down the chain if it succeeded.
 // With a single call there is no relationship to speak of, so say so.
-async function runOrder(statement) {
+async function runOrder(statement, depth) {
   const single = statement.calls.length === 1;
   log(single
     ? `[single call] ${describe(statement.calls[0])}`
-    : `[order-based] ${statement.calls.map(describe).join(" THEN ")}`, "info");
+    : `[order-based] ${statement.calls.map(describe).join(" THEN ")}`, "info", depth);
 
   for (let i = 0; i < statement.calls.length; i++) {
     const call = statement.calls[i];
-    const reply = await invoke(call.rpi, call.name, call.args);
+    const reply = await invoke(call.rpi, call.name, call.args, depth + 1);
 
     if (reply.status !== "Successful") {
       if (single) return;
       const skipped = statement.calls.length - i - 1;
-      log(`chain stopped: ${describe(call)} was unsuccessful, ${skipped} call(s) skipped`, "fail");
+      log(`chain stopped: ${describe(call)} was unsuccessful, ${skipped} call(s) skipped`,
+          "fail", depth + 1);
       return;
     }
   }
 
-  if (!single) log("chain completed", "ok");
+  if (!single) log("chain completed", "ok", depth + 1);
 }
 
-// Call A, parse its result as an int, evaluate the predicate, then run exactly
-// one branch (or none, when the predicate is false and there is no ELSE).
-async function runCondition(statement) {
-  log(`[condition-based] IF ${describe(statement.test)} ${statement.op} ${statement.value}`, "info");
-
-  const reply = await invoke(statement.test.rpi, statement.test.name, statement.test.args);
+async function evaluatePredicate(predicate, depth) {
+  const reply = await invoke(predicate.call.rpi, predicate.call.name, predicate.call.args, depth);
 
   if (reply.status !== "Successful") {
-    log(`not evaluated: ${describe(statement.test)} was unsuccessful, consequent skipped`, "fail");
-    return;
+    throw new PredicateError(`${describe(predicate.call)} was unsuccessful`);
   }
   if (typeof reply.result !== "number") {
-    log(`not evaluated: ${describe(statement.test)} returned no value to compare`, "fail");
-    return;
+    throw new PredicateError(`${describe(predicate.call)} returned no value to compare`);
   }
 
-  const holds = compare(reply.result, statement.op, statement.value);
-  log(`condition ${reply.result} ${statement.op} ${statement.value} is ${holds}`, holds ? "ok" : "info");
+  const holds = compare(reply.result, predicate.op, predicate.value);
+  log(`${reply.result} ${predicate.op} ${predicate.value} is ${holds}`, holds ? "ok" : "info", depth);
+  return holds;
+}
+
+// Short-circuits, because every predicate is a real service call on the thing
+// and a sensor read can take seconds. Skipped predicates are logged so that a
+// call which never happened is never mistaken for a bug.
+async function evaluateCondition(expr, depth) {
+  for (const andTerm of expr.terms) {
+    let holds = true;
+
+    for (const predicate of andTerm.terms) {
+      if (!holds) {
+        log(`skipped ${describePredicate(predicate)} (short-circuit)`, "other", depth);
+        continue;
+      }
+      holds = await evaluatePredicate(predicate, depth);
+    }
+
+    if (holds) return true;
+  }
+
+  return false;
+}
+
+// Evaluate the condition, then run exactly one branch: the DO body, the ELSE
+// body, or neither when the condition is false and there is no ELSE.
+async function runCondition(statement, depth) {
+  log(`[condition-based] IF ${describeCondition(statement.test)}`, "info", depth);
+
+  let holds;
+  try {
+    holds = await evaluateCondition(statement.test, depth + 1);
+  } catch (err) {
+    if (!(err instanceof PredicateError)) throw err;
+    log(`not evaluated: ${err.message}, no branch run`, "fail", depth + 1);
+    return;
+  }
 
   const branch = holds ? statement.consequent : statement.alternative;
-  if (!branch) {
-    log(`skipped: ${describe(statement.consequent)} not run, no ELSE branch`, "info");
+  log(`condition is ${holds}`, holds ? "ok" : "info", depth + 1);
+
+  if (branch.length === 0) {
+    log(holds ? "nothing to run" : "skipped: no ELSE branch", "info", depth + 1);
     return;
   }
 
-  await invoke(branch.rpi, branch.name, branch.args);
+  await runBlock(branch, depth + 1);
+}
+
+// A failed statement stops its own chain only: the next statement is a separate
+// relationship and still gets its turn.
+async function runBlock(statements, depth) {
+  for (const statement of statements) {
+    try {
+      if (statement.kind === "order") await runOrder(statement, depth);
+      else await runCondition(statement, depth);
+    } catch (err) {
+      log(`error: ${err.message}`, "error", depth);
+    }
+  }
 }
 
 async function runProgram() {
@@ -394,16 +556,7 @@ async function runProgram() {
   showMessage(`Running ${statements.length} statement(s)…`);
   log(`--- run: ${statements.length} statement(s) ---`, "info");
 
-  // A failed statement stops its own chain only: the next statement is a
-  // separate relationship and still gets its turn.
-  for (const statement of statements) {
-    try {
-      if (statement.kind === "order") await runOrder(statement);
-      else await runCondition(statement);
-    } catch (err) {
-      log(`error: ${err.message}`, "error");
-    }
-  }
+  await runBlock(statements, 0);
 
   log("--- done ---", "info");
   showMessage("Run finished.", "success");
