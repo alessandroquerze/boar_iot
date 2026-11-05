@@ -173,15 +173,13 @@ int read_dht11(int* temperature, int* humidity) {
       return -1;
 
     unsigned int duration = micros() - start;
-
     data[i / 8] <<= 1;
 
     if (duration > 50)
       data[i / 8] |= 1;
   }
 
-  unsigned char checksum =
-    (data[0] + data[1] + data[2] + data[3]) & 0xFF;
+  unsigned char checksum = (data[0] + data[1] + data[2] + data[3]) & 0xFF;
 
   if (checksum != data[4])
     return -1;

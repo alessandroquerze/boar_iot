@@ -67,7 +67,7 @@ Tracks the assignment handout. Updated as each stage lands.
 | 2.2 | Service inputs are ints, at most 2; outputs `void` or `int` | **done** by design — the Part One catalogue already obeys this |
 | 2.3 | Service names have no spaces or special characters | **done** — `Read_Temp`, `Fan_On`, … |
 | 2.4 | `wiringPi.h` declared for every GPIO service | **todo** |
-| 2.5 | Deploy Atlas V3.0 on the Pi, build and run | **todo** |
+| 2.5 | Deploy Atlas V3.0 on the Pi, build and run | **started** — Middleware ready (till part 5), waiting for the DDL |
 | 2.6 | IoT-DDL placed at `ConfigurationFiles/Atlas_IoTDDL.xml` | **todo** |
 | 2.7 | Thing ID / Space ID match between the XML and the demo app | **todo** |
 | 2.8 | Demo IoT Application unicasting API calls to port 6668 | **todo** |
