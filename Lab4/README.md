@@ -5,7 +5,7 @@ B8019 Programming the Internet of Things · Group **boar** · due **12:00 noon, 
 Our smart space is a climate-controlled room. A DHT11 reports temperature and humidity; a servo
 opens and closes a window; a fan clears the air. Each sensor read and each actuator action is
 published as a **service**, and the Edge composes those services into small applications using
-the two relationships the lab asks for — **order-based** (`A THEN B`) and **condition-based**
+the two relationships: **order-based** (`A THEN B`) and **condition-based**
 (`IF A op X DO B`).
 
 > **Single Raspberry Pi.** Where the handout says "RPi-1 (sensors)" and "RPi-2 (actuators)", we

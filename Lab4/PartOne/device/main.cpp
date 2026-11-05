@@ -25,6 +25,7 @@ using namespace std::chrono_literals;
 #include <mosquitto.h>
 #include <nlohmann/json.hpp>
 #include <wiringPi.h>
+#include <stdlib.h>
 
 using json = nlohmann::json;
 
@@ -35,6 +36,7 @@ using json = nlohmann::json;
 
 // Both PWM channels share one clock and one range in wiringPi, so the servo's
 // 50 Hz requirement fixes the fan's frequency too.
+// Frequency = 19.2MHz / (PWM_CLOCK + PWM_RANGE)
 #define PWM_CLOCK  192
 #define PWM_RANGE  2000
 
@@ -80,15 +82,26 @@ void signal_handler(int signal) {
   }
 }
 
-// Every service is self-contained, exactly like an Atlas bundle: its body opens
-// with the GPIO initialisation. Here we guard it because the process is long
-// lived; in the IoT-DDL the body calls wiringPiSetupGpio() directly.
+// Every service is self-contained. We don't want
+// to initialize the GPIO more than needed
 void gpio_setup() {
   static bool done = false;
   if (!done) {
-    wiringPiSetupGpio();
+    if (wiringPiSetupGpio() == -1) {
+      std::cerr << "GPIO Initialization Error" << std::endl;
+      exit(EXIT_FAILURE);
+    }
     done = true;
   }
+}
+
+// --- Funtion that sets everything off when the program ends ---
+void cleanup_gpio() {
+  pwmWrite(FAN_PIN, 0);
+  pwmWrite(SERVO_PIN, 0);
+  delay(50);
+  pinMode(FAN_PIN, INPUT);
+  pinMode(SERVO_PIN, INPUT);
 }
 
 void pwm_setup() {
@@ -322,16 +335,16 @@ struct ServiceSpec {
 };
 
 const std::vector<ServiceSpec> CATALOGUE = {
-  { "ClimateSensor", "Calibrate_Sensor",     {},         "int"  },
-  { "ClimateSensor", "Read_Temp",            {"F_or_C"}, "int"  },
-  { "ClimateSensor", "Read_Humidity",        {},         "int"  },
-  { "Fan",           "Fan_On",               {"speed"},  "int"  },
-  { "Fan",           "Fan_Off",              {},         "void" },
-  { "Fan",           "Read_Fan_Speed",       {},         "int"  },
-  { "Fan",           "Read_Fan_Status",      {},         "int"  },
-  { "Window",        "Set_Window",           {"angle"},  "int"  },
-  { "Window",        "Window_Close",         {},         "void" },
-  { "Window",        "Read_Window_Position", {},         "int"  },
+  { "ClimateSensor", "Calibrate_Sensor",{},         "int" },
+  { "ClimateSensor", "Read_Temp",{ "F_or_C" }, "int" },
+  { "ClimateSensor", "Read_Humidity",{},         "int" },
+  { "Fan",           "Fan_On",{ "speed" },  "int" },
+  { "Fan",           "Fan_Off",{},         "void" },
+  { "Fan",           "Read_Fan_Speed",{},         "int" },
+  { "Fan",           "Read_Fan_Status",{},         "int" },
+  { "Window",        "Set_Window",{ "angle" },  "int" },
+  { "Window",        "Window_Close",{},         "void" },
+  { "Window",        "Read_Window_Position",{},         "int" },
 };
 
 Result dispatch(const std::string& name, const std::vector<int>& inputs) {
@@ -481,14 +494,6 @@ void on_message(struct mosquitto* m, void* obj, const struct mosquitto_message* 
   std::cout << "REPLY " << service << " " << result.description << std::endl;
 }
 
-void cleanup_gpio() {
-  pwmWrite(FAN_PIN, 0);
-  pwmWrite(SERVO_PIN, 0);
-  delay(50);
-  pinMode(FAN_PIN, INPUT);
-  pinMode(SERVO_PIN, INPUT);
-}
-
 int main(int argc, char** argv) {
   const char* host = (argc > 1) ? argv[1] : "localhost";
   int port = (argc > 2) ? std::atoi(argv[2]) : 1883;
@@ -523,6 +528,8 @@ int main(int argc, char** argv) {
   }
   mosquitto_loop_start(mosq);
 
+  // Here, unlike Lab3, there are no buttons to
+  // actively wait for, so the while is empty
   while (keep_running) {
     std::this_thread::sleep_for(100ms);
   }
