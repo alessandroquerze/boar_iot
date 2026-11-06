@@ -1,0 +1,728 @@
+<Atlas_IoTDDL>
+	<Atlas_Thing>
+		<Descriptive_Metadata>
+			<Thing_ATID>AT_BoarAirSensor</Thing_ATID>
+			<Thing_Name>Smart Air Quality Sensor</Thing_Name>
+			<Thing_Owner>BoarGroup</Thing_Owner>
+			<Thing_Vendor></Thing_Vendor>
+			<Thing_Model></Thing_Model>
+			<Thing_ReleaseDate>11/2026</Thing_ReleaseDate>
+			<Thing_Type>Thing of Things</Thing_Type>
+			<Thing_OperatingSystem>Raspbian</Thing_OperatingSystem>
+			<Thing_ShortDescription>The room's air quality is managed controlling a fan and a window based on the measurements of a temperature and humidity sensor, all operating in an IoT environment</Thing_ShortDescription>
+			<LongDescription></LongDescription>
+			<Thing_SSID>BoarSmartSpace</Thing_SSID>
+			<Space_Coordinates></Space_Coordinates>
+			<Space_Name></Space_Name>
+			<Space_Description></Space_Description>
+			<Space_Constraints>
+				<Temperature>
+					<Lower_Bound></Lower_Bound>
+					<Upper_Bound></Upper_Bound>
+				</Temperature>
+				<Humidity>
+					<Lower_Bound></Lower_Bound>
+					<Upper_Bound></Upper_Bound>
+				</Humidity>
+				<Voltage>
+					<Lower_Bound></Lower_Bound>
+					<Upper_Bound></Upper_Bound>
+				</Voltage>
+				<Radio_Interference_Radius></Radio_Interference_Radius>
+				<Safe_Temperature_Radius></Safe_Temperature_Radius>
+			</Space_Constraints>
+		</Descriptive_Metadata>
+		<Administrative_Metadata>
+			<Network_Manager>
+				<Module>WiFi</Module>
+				<Type>Attached</Type>
+				<Network_Name>GL-SFT1200</Network_Name>
+				<Network_Passcode>goodlife</Network_Passcode>
+				<MulticastGroup>
+					<IP></IP>
+					<Port></Port>
+				</MulticastGroup>
+				<Communication_Protocol>MQTT</Communication_Protocol>
+				<InterOperableCommunication>
+					<Broker>
+						<Vendor></Vendor>
+						<Dashboard></Dashboard>
+						<IP></IP>
+						<Port>1883</Port>
+					</Broker>
+					<Topic>
+						<Root>/Atlas</Root>
+						<Network_MQTTClient>/Network/MQTT_Client</Network_MQTTClient>
+						<Network_PrivateBroker>/Network/Private_Broker</Network_PrivateBroker>
+						<Multicast_ThingIdentity>/Multicast/Tweet_ThingIdentity</Multicast_ThingIdentity>
+						<Multicast_EntityIdentity>/Multicast/Tweet_EntityIdentity</Multicast_EntityIdentity>
+						<Multicast_API>/Multicast/API</Multicast_API>
+						<Unicast>/Unicast/Interaction</Unicast>
+					</Topic>
+				</InterOperableCommunication>
+				<OMA_DM>
+					<AccessName></AccessName>
+					<IP></IP>
+					<Port></Port>
+				</OMA_DM>
+			</Network_Manager>
+			<Memory_Manager>
+				<Store_Format></Store_Format>
+				<MemoryUnit_Application></MemoryUnit_Application>
+				<MemoryUnit_Knowledge></MemoryUnit_Knowledge>
+			</Memory_Manager>
+		</Administrative_Metadata>
+		<Thing_Attachment>
+
+		</Thing_Attachment>
+		<Structural_Metadata>
+			<Number_Hardware>3</Number_Hardware>
+			<Number_Software>0</Number_Software>
+			<Number_Hybrid>0</Number_Hybrid>
+			<Number_Entities>3</Number_Entities>
+		</Structural_Metadata>
+	</Atlas_Thing>
+	<Atlas_Entities>
+		<Entity_1>
+			<Descriptive_Metadata>
+				<ID>ClimateSensor</ID>
+				<Name>Temperature & Humidity Sensor DHT11</Name>
+				<Owner>BoarGroup</Owner>
+				<Vendor></Vendor>
+				<Category>Hardware</Category>
+				<Type></Type>
+				<Description></Description>
+			</Descriptive_Metadata>
+			<Services>
+				<Service_1>
+					<Name>Calibrate_Sensor</Name>
+					<AppCategory></AppCategory>
+					<Type>Report</Type>
+					<Keywords>temperature,humidity,calibration,sensor</Keywords>
+					<Description></Description>
+					<Contextual_Constraints>
+						<Time_Window></Time_Window>
+						<Usage_Mode></Usage_Mode>
+						<Concurrent></Concurrent>
+					</Contextual_Constraints>
+					<Temporal_Constraints>
+						<Working>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Working>
+						<Callable>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Callable>
+					</Temporal_Constraints>
+					<OutputDescription>Calibrates the sensor</OutputDescription>
+					<OutputType>int</OutputType>
+					<Service_Formula><![CDATA[
+// ~ Service body C/C++ code block ~
+#define DHT_ATTEMPTS 3
+#define DHT_RETRY_MS 1100
+
+wiringPiSetupGpio();
+for (int attempt = 0; attempt < DHT_ATTEMPTS; attempt++) {
+    if (attempt > 0) delay(DHT_RETRY_MS);
+    
+    if (read_dht11(temperature, humidity) == 0)
+        return 1;
+}
+return -1;
+]]></Service_Formula>
+					<Service_NumberInputs>0</Service_NumberInputs>
+					<Service_InputTypes></Service_InputTypes>
+					<Service_InputDescriptions></Service_InputDescriptions>
+					<Library_Number>1</Library_Number>
+					<Libraries>wiringPi.h</Libraries>
+					<ADC_Number>0</ADC_Number>
+				</Service_1>
+				<Service_2>
+					<Name>Read_Temp</Name>
+					<AppCategory></AppCategory>
+					<Type>Report</Type>
+					<Keywords>temperature,sensor,read</Keywords>
+					<Description></Description>
+					<Contextual_Constraints>
+						<Time_Window></Time_Window>
+						<Usage_Mode></Usage_Mode>
+						<Concurrent></Concurrent>
+					</Contextual_Constraints>
+					<Temporal_Constraints>
+						<Working>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Working>
+						<Callable>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Callable>
+					</Temporal_Constraints>
+					<OutputDescription>Returns the temperature in Fahrenheit or Celsius</OutputDescription>
+					<OutputType>int</OutputType>
+					<Service_Formula><![CDATA[
+// ~ Service body C/C++ code block ~
+#define DHT_PIN    17
+
+unsigned char data[5] = { 0 };
+
+wiringPiSetupGpio();
+pinMode(DHT_PIN, OUTPUT);
+digitalWrite(DHT_PIN, LOW);
+delay(20);
+
+pinMode(DHT_PIN, INPUT);
+pullUpDnControl(DHT_PIN, PUD_UP);
+
+if (!wait_level(HIGH, 100)) return -1;
+if (!wait_level(LOW, 100))  return -1;
+if (!wait_level(HIGH, 120)) return -1;
+if (!wait_level(LOW, 120))  return -1;
+
+for (int i = 0; i < 40; i++) {
+    if (!wait_level(HIGH, 100))
+        return -1;
+
+    unsigned int start = micros();
+
+    if (!wait_level(LOW, 120))
+        return -1;
+
+    unsigned int duration = micros() - start;
+    data[i / 8] <<= 1;
+
+    if (duration > 50)
+        data[i / 8] |= 1;
+}
+
+unsigned char checksum = (data[0] + data[1] + data[2] + data[3]) & 0xFF;
+
+if (checksum != data[4])
+    return -1;
+
+*humidity = data[0];
+*temperature = data[2];
+
+if (F_or_C == 1)
+    return temperature * 9 / 5 + 32;
+
+return temperature;
+]]></Service_Formula>
+					<Service_NumberInputs>1</Service_NumberInputs>
+					<Service_InputTypes>int</Service_InputTypes>
+					<Service_InputDescriptions>"F_or_C"</Service_InputDescriptions>
+					<Library_Number>1</Library_Number>
+					<Libraries>wiringPi.h</Libraries>
+					<ADC_Number>0</ADC_Number>
+				</Service_2>
+				<Service_3>
+					<Name>Read_Humidity</Name>
+					<AppCategory></AppCategory>
+					<Type>Report</Type>
+					<Keywords>humidity,sensor,read</Keywords>
+					<Description></Description>
+					<Contextual_Constraints>
+						<Time_Window></Time_Window>
+						<Usage_Mode></Usage_Mode>
+						<Concurrent></Concurrent>
+					</Contextual_Constraints>
+					<Temporal_Constraints>
+						<Working>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Working>
+						<Callable>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Callable>
+					</Temporal_Constraints>
+					<OutputDescription>Returns the percentage of humidity</OutputDescription>
+					<OutputType>int</OutputType>
+					<Service_Formula><![CDATA[
+// ~ Service body C/C++ code block ~
+#define DHT_PIN    17
+
+unsigned char data[5] = { 0 };
+
+wiringPiSetupGpio();
+pinMode(DHT_PIN, OUTPUT);
+digitalWrite(DHT_PIN, LOW);
+delay(20);
+
+pinMode(DHT_PIN, INPUT);
+pullUpDnControl(DHT_PIN, PUD_UP);
+
+if (!wait_level(HIGH, 100)) return -1;
+if (!wait_level(LOW, 100))  return -1;
+if (!wait_level(HIGH, 120)) return -1;
+if (!wait_level(LOW, 120))  return -1;
+
+for (int i = 0; i < 40; i++) {
+    if (!wait_level(HIGH, 100))
+        return -1;
+
+    unsigned int start = micros();
+
+    if (!wait_level(LOW, 120))
+        return -1;
+
+    unsigned int duration = micros() - start;
+    data[i / 8] <<= 1;
+
+    if (duration > 50)
+        data[i / 8] |= 1;
+}
+
+unsigned char checksum = (data[0] + data[1] + data[2] + data[3]) & 0xFF;
+
+if (checksum != data[4])
+    return -1;
+
+*humidity = data[0];
+*temperature = data[2];
+
+return humidity;
+]]></Service_Formula>
+					<Service_NumberInputs>0</Service_NumberInputs>
+					<Service_InputTypes></Service_InputTypes>
+					<Service_InputDescriptions></Service_InputDescriptions>
+					<Library_Number>1</Library_Number>
+					<Libraries>wiringPi.h</Libraries>
+					<ADC_Number>0</ADC_Number>
+				</Service_3>
+				<Number_Services>3</Number_Services>
+			</Services>
+			<UnboundedService>
+				<Number_UnboundedServices>0</Number_UnboundedServices>
+			</UnboundedService>
+			<Relationships>
+				<Number_Relationships>0</Number_Relationships>
+			</Relationships>
+		</Entity_1>
+		<Entity_2>
+			<Descriptive_Metadata>
+				<ID>Fan</ID>
+				<Name>Fan Motor 2N2222</Name>
+				<Owner>BoarGroup</Owner>
+				<Vendor></Vendor>
+				<Category>Hardware</Category>
+				<Type></Type>
+				<Description></Description>
+			</Descriptive_Metadata>
+			<Services>
+				<Service_1>
+					<Name>Fan_On</Name>
+					<AppCategory></AppCategory>
+					<Type>Action</Type>
+					<Keywords>fan,on,motor</Keywords>
+					<Description></Description>
+					<Contextual_Constraints>
+						<Time_Window></Time_Window>
+						<Usage_Mode></Usage_Mode>
+						<Concurrent></Concurrent>
+					</Contextual_Constraints>
+					<Temporal_Constraints>
+						<Working>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Working>
+						<Callable>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Callable>
+					</Temporal_Constraints>
+					<OutputDescription>Turns the fan on at a certain speed and returns the applied speed</OutputDescription>
+					<OutputType>int</OutputType>
+					<Service_Formula><![CDATA[
+// ~ Service body C/C++ code block ~
+#define FAN_PIN    13
+#define FAN_MAX_PCT 75
+#define PWM_CLOCK  192
+#define PWM_RANGE  2000
+
+static const char* FAN_STATE_FILE = "/tmp/fan_speed";
+
+if (speed < 0) speed = 0;
+    if (speed > FAN_MAX_PCT) speed = FAN_MAX_PCT;
+
+wiringPiSetupGpio();
+pinMode(FAN_PIN, PWM_OUTPUT);
+pwmSetMode(PWM_MODE_MS);
+pwmSetClock(PWM_CLOCK);
+pwmSetRange(PWM_RANGE);
+pwmWrite(FAN_PIN, speed * PWM_RANGE / 100);
+
+FILE* f = fopen(FAN_STATE_FILE, "w");
+if (f == nullptr) return;
+fprintf(f, "%d", speed);
+fclose(f);
+
+return speed;
+]]></Service_Formula>
+					<Service_NumberInputs>1</Service_NumberInputs>
+					<Service_InputTypes>int</Service_InputTypes>
+					<Service_InputDescriptions>"speed"</Service_InputDescriptions>
+					<Library_Number>1</Library_Number>
+					<Libraries>wiringPi.h</Libraries>
+					<ADC_Number>0</ADC_Number>
+				</Service_1>
+				<Service_2>
+					<Name>Fan_Off</Name>
+					<AppCategory></AppCategory>
+					<Type>Action</Type>
+					<Keywords>fan,off,motor</Keywords>
+					<Description></Description>
+					<Contextual_Constraints>
+						<Time_Window></Time_Window>
+						<Usage_Mode></Usage_Mode>
+						<Concurrent></Concurrent>
+					</Contextual_Constraints>
+					<Temporal_Constraints>
+						<Working>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Working>
+						<Callable>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Callable>
+					</Temporal_Constraints>
+					<OutputDescription>Turns off the fan</OutputDescription>
+					<OutputType>void</OutputType>
+					<Service_Formula><![CDATA[
+// ~ Service body C/C++ code block ~
+#define FAN_PIN    13
+#define PWM_CLOCK  192
+#define PWM_RANGE  2000
+
+static const char* FAN_STATE_FILE = "/tmp/fan_speed";
+
+wiringPiSetupGpio();
+pinMode(FAN_PIN, PWM_OUTPUT);
+pwmSetMode(PWM_MODE_MS);
+pwmSetClock(PWM_CLOCK);
+pwmSetRange(PWM_RANGE);
+pwmWrite(FAN_PIN, 0);
+
+FILE* f = fopen(FAN_STATE_FILE, "w");
+if (f == nullptr) return;
+fprintf(f, "%d", 0);
+fclose(f);
+]]></Service_Formula>
+					<Service_NumberInputs>0</Service_NumberInputs>
+					<Service_InputTypes></Service_InputTypes>
+					<Service_InputDescriptions></Service_InputDescriptions>
+					<Library_Number>1</Library_Number>
+					<Libraries>wiringPi.h</Libraries>
+					<ADC_Number>0</ADC_Number>
+				</Service_2>
+				<Service_3>
+					<Name>Read_Fan_Speed</Name>
+					<AppCategory></AppCategory>
+					<Type>Report</Type>
+					<Keywords>read,fan,speed,motor</Keywords>
+					<Description></Description>
+					<Contextual_Constraints>
+						<Time_Window></Time_Window>
+						<Usage_Mode></Usage_Mode>
+						<Concurrent></Concurrent>
+					</Contextual_Constraints>
+					<Temporal_Constraints>
+						<Working>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Working>
+						<Callable>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Callable>
+					</Temporal_Constraints>
+					<OutputDescription>Returns the actual speed of the fan</OutputDescription>
+					<OutputType>int</OutputType>
+					<Service_Formula><![CDATA[
+// ~ Service body C/C++ code block ~// ~ Service body C/C++ code block ~
+#define FAN_MAX_PCT 75
+
+static const char* FAN_STATE_FILE = "/tmp/fan_speed";
+
+FILE* f = fopen(FAN_STATE_FILE, "r");
+if (f == nullptr) return 0;
+
+int value = 0;
+if (fscanf(f, "%d", &value) != 1) value = 0;
+fclose(f);
+
+if (value < 0) value = 0;
+if (value > FAN_MAX_PCT) value = FAN_MAX_PCT;
+return value;
+]]></Service_Formula>
+					<Service_NumberInputs>0</Service_NumberInputs>
+					<Service_InputTypes></Service_InputTypes>
+					<Service_InputDescriptions></Service_InputDescriptions>
+					<Library_Number>0</Library_Number>
+					<Libraries></Libraries>
+					<ADC_Number>0</ADC_Number>
+				</Service_3>
+				<Service_4>
+					<Name>Read_Fan_Status</Name>
+					<AppCategory></AppCategory>
+					<Type>Report</Type>
+					<Keywords>status,read,fan,motor</Keywords>
+					<Description></Description>
+					<Contextual_Constraints>
+						<Time_Window></Time_Window>
+						<Usage_Mode></Usage_Mode>
+						<Concurrent></Concurrent>
+					</Contextual_Constraints>
+					<Temporal_Constraints>
+						<Working>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Working>
+						<Callable>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Callable>
+					</Temporal_Constraints>
+					<OutputDescription>Returns the status of the fan</OutputDescription>
+					<OutputType>int</OutputType>
+					<Service_Formula><![CDATA[
+// ~ Service body C/C++ code block ~
+static const char* FAN_STATE_FILE = "/tmp/fan_speed";
+
+FILE* f = fopen(FAN_STATE_FILE, "r");
+if (f == nullptr) return 0;
+
+int value = 0;
+if (fscanf(f, "%d", &value) != 1) value = 0;
+fclose(f);
+
+return (value <= 0) ? 0 : 1;
+]]></Service_Formula>
+					<Service_NumberInputs>0</Service_NumberInputs>
+					<Service_InputTypes></Service_InputTypes>
+					<Service_InputDescriptions></Service_InputDescriptions>
+					<Library_Number>0</Library_Number>
+					<Libraries></Libraries>
+					<ADC_Number>0</ADC_Number>
+				</Service_4>
+				<Number_Services>4</Number_Services>
+			</Services>
+			<Relationships>
+				<Relationship_1>
+					<Name>Fan On interference</Name>
+					<Establisher></Establisher>
+					<Description>Turning on and off the fan should be concurrent</Description>
+					<type>interfere</type>
+					<Input1>Fan_On</Input1>
+					<Input2>Fan_Off</Input2>
+				</Relationship_1>
+				<Relationship_2>
+					<Name>Fan Off interference</Name>
+					<Establisher></Establisher>
+					<Description>Turning on and off the fan should be concurrent</Description>
+					<type>interfere</type>
+					<Input1>Fan_Off</Input1>
+					<Input2>Fan_On</Input2>
+				</Relationship_2>
+				<Number_Relationships>2</Number_Relationships>
+			</Relationships>
+			<UnboundedService>
+				<Number_UnboundedServices>0</Number_UnboundedServices>
+			</UnboundedService>
+		</Entity_2>
+		<Entity_3>
+			<Descriptive_Metadata>
+				<ID>Window</ID>
+				<Name>Servo Motor</Name>
+				<Owner>BoarGroup</Owner>
+				<Vendor></Vendor>
+				<Category>Hardware</Category>
+				<Type></Type>
+				<Description></Description>
+			</Descriptive_Metadata>
+			<Services>
+				<Service_1>
+					<Name>Set_Window</Name>
+					<AppCategory></AppCategory>
+					<Type>Action</Type>
+					<Keywords>window,motor,servo,set</Keywords>
+					<Description></Description>
+					<Contextual_Constraints>
+						<Time_Window></Time_Window>
+						<Usage_Mode></Usage_Mode>
+						<Concurrent></Concurrent>
+					</Contextual_Constraints>
+					<Temporal_Constraints>
+						<Working>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Working>
+						<Callable>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Callable>
+					</Temporal_Constraints>
+					<OutputDescription>Opens the window and returns the applied angle</OutputDescription>
+					<OutputType>int</OutputType>
+					<Service_Formula><![CDATA[
+// ~ Service body C/C++ code block ~
+#define SERVO_PIN  18
+#define SERVO_CLOSED_PWM 150
+#define WINDOW_MAX_ANGLE 50
+#define PWM_CLOCK  192
+#define PWM_RANGE  2000
+#define SERVO_TICKS_180  200
+
+static const char* WINDOW_STATE_FILE = "/tmp/window_angle";
+
+if (angle < 0) angle = 0;
+if (angle > WINDOW_MAX_ANGLE) angle = WINDOW_MAX_ANGLE;
+
+wiringPiSetupGpio();
+pinMode(SERVO_PIN, PWM_OUTPUT);
+pwmSetMode(PWM_MODE_MS);
+pwmSetClock(PWM_CLOCK);
+pwmSetRange(PWM_RANGE);
+pwmWrite(SERVO_PIN, SERVO_CLOSED_PWM + (angle * SERVO_TICKS_180) / 180);
+
+FILE* f = fopen(WINDOW_STATE_FILE, "w");
+if (f == nullptr) return;
+fprintf(f, "%d", angle);
+fclose(f);
+
+return angle;
+]]></Service_Formula>
+					<Service_NumberInputs>1</Service_NumberInputs>
+					<Service_InputTypes>int</Service_InputTypes>
+					<Service_InputDescriptions>"angle"</Service_InputDescriptions>
+					<Library_Number>1</Library_Number>
+					<Libraries>wiringPi.h</Libraries>
+					<ADC_Number>0</ADC_Number>
+				</Service_1>
+				<Service_2>
+					<Name>Window_Close</Name>
+					<AppCategory></AppCategory>
+					<Type>Action</Type>
+					<Keywords>window,close,servo,motor</Keywords>
+					<Description></Description>
+					<Contextual_Constraints>
+						<Time_Window></Time_Window>
+						<Usage_Mode></Usage_Mode>
+						<Concurrent></Concurrent>
+					</Contextual_Constraints>
+					<Temporal_Constraints>
+						<Working>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Working>
+						<Callable>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Callable>
+					</Temporal_Constraints>
+					<OutputDescription>Closes the window</OutputDescription>
+					<OutputType>void</OutputType>
+					<Service_Formula><![CDATA[
+// ~ Service body C/C++ code block ~
+#define SERVO_PIN  18
+#define SERVO_CLOSED_PWM 150
+#define PWM_CLOCK  192
+#define PWM_RANGE  2000
+
+static const char* WINDOW_STATE_FILE = "/tmp/window_angle";
+
+wiringPiSetupGpio();
+pinMode(SERVO_PIN, PWM_OUTPUT);
+pwmSetMode(PWM_MODE_MS);
+pwmSetClock(PWM_CLOCK);
+pwmSetRange(PWM_RANGE);
+pwmWrite(SERVO_PIN, SERVO_CLOSED_PWM);
+
+FILE* f = fopen(WINDOW_STATE_FILE, "w");
+if (f == nullptr) return;
+fprintf(f, "%d", 0);
+fclose(f);
+]]></Service_Formula>
+					<Service_NumberInputs>0</Service_NumberInputs>
+					<Service_InputTypes></Service_InputTypes>
+					<Service_InputDescriptions></Service_InputDescriptions>
+					<Library_Number>1</Library_Number>
+					<Libraries>wiringPi.h</Libraries>
+					<ADC_Number>0</ADC_Number>
+				</Service_2>
+				<Service_3>
+					<Name>Read_Window_Position</Name>
+					<AppCategory></AppCategory>
+					<Type>Report</Type>
+					<Keywords>read,window,position,servo,motor</Keywords>
+					<Description></Description>
+					<Contextual_Constraints>
+						<Time_Window></Time_Window>
+						<Usage_Mode></Usage_Mode>
+						<Concurrent></Concurrent>
+					</Contextual_Constraints>
+					<Temporal_Constraints>
+						<Working>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Working>
+						<Callable>
+							<StartTime></StartTime>
+							<EndTime></EndTime>
+						</Callable>
+					</Temporal_Constraints>
+					<OutputDescription>Returns the angle of the window</OutputDescription>
+					<OutputType>int</OutputType>
+					<Service_Formula><![CDATA[
+// ~ Service body C/C++ code block ~
+#define WINDOW_MAX_ANGLE 50
+
+static const char* WINDOW_STATE_FILE = "/tmp/window_angle";
+
+FILE* f = fopen(WINDOW_STATE_FILE, "r");
+if (f == nullptr) return 0;
+
+int value = 0;
+if (fscanf(f, "%d", &value) != 1) value = 0;
+fclose(f);
+
+if (value < 0) value = 0;
+if (value > WINDOW_MAX_ANGLE) value = WINDOW_MAX_ANGLE;
+return value;
+]]></Service_Formula>
+					<Service_NumberInputs>0</Service_NumberInputs>
+					<Service_InputTypes></Service_InputTypes>
+					<Service_InputDescriptions></Service_InputDescriptions>
+					<Library_Number>0</Library_Number>
+					<Libraries></Libraries>
+					<ADC_Number>0</ADC_Number>
+				</Service_3>
+				<Number_Services>3</Number_Services>
+			</Services>
+			<Relationships>
+				<Relationship_1>
+					<Name>Close interference</Name>
+					<Establisher></Establisher>
+					<Description>Setting and closing the window should be concurrent</Description>
+					<type>interfere</type>
+					<Input1>Window_Close</Input1>
+					<Input2>Set_Window</Input2>
+				</Relationship_1>
+				<Relationship_2>
+					<Name>Set interference</Name>
+					<Establisher></Establisher>
+					<Description>Setting and closing the window should be concurrent</Description>
+					<type>interfere</type>
+					<Input1>Set_Window</Input1>
+					<Input2>Window_Close</Input2>
+				</Relationship_2>
+				<Number_Relationships>2</Number_Relationships>
+			</Relationships>
+			<UnboundedService>
+				<Number_UnboundedServices>0</Number_UnboundedServices>
+			</UnboundedService>
+		</Entity_3>
+	</Atlas_Entities>
+</Atlas_IoTDDL>
