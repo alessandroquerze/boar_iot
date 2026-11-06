@@ -1,0 +1,17 @@
+autogen definitions service;
+library = "#include <wiringPi.h>";
+output = { type = void; };
+name = Fan_Off;
+source = "#define FAN_PIN    13";
+source = "#define PWM_CLOCK  192";
+source = "#define PWM_RANGE  2000";
+source = "static const char* FAN_STATE_FILE = "/tmp/fan_speed";";
+source = "wiringPiSetupGpio();";
+source = "pinMode(FAN_PIN, PWM_OUTPUT);";
+source = "pwmSetMode(PWM_MODE_MS);";
+source = "pwmSetClock(PWM_CLOCK);";
+source = "pwmSetRange(PWM_RANGE);";
+source = "pwmWrite(FAN_PIN, 0);";
+source = "FILE* f = fopen(FAN_STATE_FILE, "w");";
+source = "fprintf(f, "%d", 0);";
+source = "fclose(f);";

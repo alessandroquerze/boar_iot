@@ -1,0 +1,11 @@
+autogen definitions service;
+output = { name = Returns the actual speed of the fan; type = "int"; };
+name = Read_Fan_Speed;
+source = "#define FAN_MAX_PCT 75";
+source = "static const char* FAN_STATE_FILE = "/tmp/fan_speed";";
+source = "FILE* f = fopen(FAN_STATE_FILE, "r");";
+source = "int value = 0;";
+source = "if (fscanf(f, "%d", &value) != 1) value = 0;";
+source = "fclose(f);";
+source = "if (value < 0) value = 0;";
+source = "if (value > FAN_MAX_PCT) value = FAN_MAX_PCT;";

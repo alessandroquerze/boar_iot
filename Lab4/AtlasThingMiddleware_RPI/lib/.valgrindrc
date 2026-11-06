@@ -1,0 +1,3 @@
+--memcheck:leak-check=full
+--memcheck:show-reachable=yes
+--suppressions=/home/boar/lab4/AtlasThingMiddleware_RPI/lib/CppMicroServices-development/valgrind_suppressions.txt

@@ -1,0 +1,11 @@
+autogen definitions service;
+output = { name = Returns the angle of the window; type = "int"; };
+name = Read_Window_Position;
+source = "#define WINDOW_MAX_ANGLE 50";
+source = "static const char* WINDOW_STATE_FILE = "/tmp/window_angle";";
+source = "FILE* f = fopen(WINDOW_STATE_FILE, "r");";
+source = "int value = 0;";
+source = "if (fscanf(f, "%d", &value) != 1) value = 0;";
+source = "fclose(f);";
+source = "if (value < 0) value = 0;";
+source = "if (value > WINDOW_MAX_ANGLE) value = WINDOW_MAX_ANGLE;";

@@ -1,0 +1,9 @@
+
+{
+	"bundle.symbolic_name": "ADCTest",
+	"bundle.activator":     true,
+	"bundle.name"         : "Service ADCTest",
+	"bundle.description"  : "This bundle is service type"
+}
+
+

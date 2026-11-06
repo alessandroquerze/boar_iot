@@ -1,0 +1,3 @@
+/home/boar/lab4/AtlasThingMiddleware_RPI/CMakeFiles/Atlas.dir
+/home/boar/lab4/AtlasThingMiddleware_RPI/CMakeFiles/edit_cache.dir
+/home/boar/lab4/AtlasThingMiddleware_RPI/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,12 @@
+autogen definitions service;
+library = "#include <wiringPi.h>";
+output = { name = Calibrates the sensor; type = "int"; };
+name = Calibrate_Sensor;
+source = "#define DHT_ATTEMPTS 3";
+source = "#define DHT_RETRY_MS 1100";
+source = "wiringPiSetupGpio();";
+source = "for (int attempt = 0; attempt < DHT_ATTEMPTS; attempt++) {";
+source = "    if (attempt > 0) delay(DHT_RETRY_MS);";
+source = "    ";
+source = "    if (read_dht11(temperature, humidity) == 0)";
+source = "}";

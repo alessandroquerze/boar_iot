@@ -1,0 +1,9 @@
+
+{
+	"bundle.symbolic_name": "OperateMotor",
+	"bundle.activator":     true,
+	"bundle.name"         : "Service OperateMotor",
+	"bundle.description"  : "This bundle is service type"
+}
+
+
