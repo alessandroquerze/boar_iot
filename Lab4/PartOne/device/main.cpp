@@ -21,29 +21,34 @@
 #include <vector>
 
 using namespace std::chrono_literals;
+using std::string;
+using std::vector;
+using std::cout;
+using std::cerr;
+using std::endl;
 
 #include <mosquitto.h>
 #include <nlohmann/json.hpp>
-#include <wiringPi.h>
 #include <stdlib.h>
+#include <wiringPi.h>
 
 using json = nlohmann::json;
 
 // --- Pin configuration (BCM) ---
-#define DHT_PIN    17
-#define SERVO_PIN  18
-#define FAN_PIN    13
+#define DHT_PIN 17
+#define SERVO_PIN 18
+#define FAN_PIN 13
 
 // Both PWM channels share one clock and one range in wiringPi, so the servo's
 // 50 Hz requirement fixes the fan's frequency too.
 // Frequency = 19.2MHz / (PWM_CLOCK + PWM_RANGE)
-#define PWM_CLOCK  192
-#define PWM_RANGE  2000
+#define PWM_CLOCK 192
+#define PWM_RANGE 2000
 
 // Servo calibration from test/servocal.c: 500 us is 90 deg clockwise, 1500 us
 // straight, 2500 us 90 deg counter-clockwise. At 10 us per tick that is 200
 // ticks for 180 deg of travel.
-#define SERVO_TICKS_180  200
+#define SERVO_TICKS_180 200
 
 // The window is shut with the horn centred and opens counter-clockwise. Its
 // linkage binds past 50 deg, so everything that drives GPIO18 clamps there.
@@ -64,8 +69,8 @@ using json = nlohmann::json;
 static const char* WINDOW_STATE_FILE = "/tmp/window_angle";
 static const char* FAN_STATE_FILE = "/tmp/fan_speed";
 
-static const std::string TOPIC_PREFIX = "vss/boar/";
-static const std::string RPI_ID = "RPi-1";
+static const string TOPIC_PREFIX = "vss/boar/";
+static const string RPI_ID = "RPi-1";
 
 std::atomic<bool> keep_running(true);
 
@@ -88,7 +93,7 @@ void gpio_setup() {
   static bool done = false;
   if (!done) {
     if (wiringPiSetupGpio() == -1) {
-      std::cerr << "GPIO Initialization Error" << std::endl;
+      cerr << "GPIO Initialization Error" << endl;
       exit(EXIT_FAILURE);
     }
     done = true;
@@ -114,21 +119,26 @@ void pwm_setup() {
 
 void write_state_int(const char* path, int value) {
   FILE* f = fopen(path, "w");
-  if (f == nullptr) return;
+  if (f == nullptr)
+    return;
   fprintf(f, "%d", value);
   fclose(f);
 }
 
 int read_state_int(const char* path, int max) {
   FILE* f = fopen(path, "r");
-  if (f == nullptr) return 0;
+  if (f == nullptr)
+    return 0;
 
   int value = 0;
-  if (fscanf(f, "%d", &value) != 1) value = 0;
+  if (fscanf(f, "%d", &value) != 1)
+    value = 0;
   fclose(f);
 
-  if (value < 0) value = 0;
-  if (value > max) value = max;
+  if (value < 0)
+    value = 0;
+  if (value > max)
+    value = max;
   return value;
 }
 
@@ -146,8 +156,8 @@ int wait_level(int level, unsigned int timeout_us) {
   return 1;
 }
 
-// Restituisce 0 in caso di lettura valida. Temperatura in gradi Celsius interi,
-// umidita' in punti percentuali interi: il DHT11 non ha parte decimale.
+// Returns 0 if the reading was successful. Both temperature and humidity (representing a percentage)
+// are integers, DHT11 doesn't have decimal precision
 int read_dht11(int* temperature, int* humidity) {
   unsigned char data[5] = { 0 };
 
@@ -158,10 +168,14 @@ int read_dht11(int* temperature, int* humidity) {
   pinMode(DHT_PIN, INPUT);
   pullUpDnControl(DHT_PIN, PUD_UP);
 
-  if (!wait_level(HIGH, 100)) return -1;
-  if (!wait_level(LOW, 100))  return -1;
-  if (!wait_level(HIGH, 120)) return -1;
-  if (!wait_level(LOW, 120))  return -1;
+  if (!wait_level(HIGH, 100))
+    return -1;
+  if (!wait_level(LOW, 100))
+    return -1;
+  if (!wait_level(HIGH, 120))
+    return -1;
+  if (!wait_level(LOW, 120))
+    return -1;
 
   for (int i = 0; i < 40; i++) {
     if (!wait_level(HIGH, 100))
@@ -190,12 +204,11 @@ int read_dht11(int* temperature, int* humidity) {
   return 0;
 }
 
-// Ritenta la lettura: il DHT11 sbaglia spesso al primo colpo e vuole circa un
-// secondo fra due conversioni, quindi fra un tentativo e l'altro si aspetta.
-// Nel caso peggiore blocca ~2.3 s, dentro il timeout di 10 s dell'Edge.
+// The function retries the reading, the first ones can be erroneous
 int read_dht11_retry(int* temperature, int* humidity) {
   for (int attempt = 0; attempt < DHT_ATTEMPTS; attempt++) {
-    if (attempt > 0) delay(DHT_RETRY_MS);
+    if (attempt > 0)
+      delay(DHT_RETRY_MS);
 
     if (read_dht11(temperature, humidity) == 0)
       return 0;
@@ -210,15 +223,15 @@ int read_dht11_retry(int* temperature, int* humidity) {
 
 struct Result {
   bool ok;
-  std::string description;
-  json value;        // number, or null where Atlas would say "No Output"
+  string description;
+  json value; // number, or null where Atlas would say "No Output"
 };
 
 Result success(json value = nullptr) {
   return { true, "Successful Service Call", value };
 }
 
-Result failure(const std::string& description) {
+Result failure(const string& description) {
   return { false, description, nullptr };
 }
 
@@ -262,8 +275,10 @@ Result svc_read_humidity() {
 Result svc_fan_on(int speed) {
   gpio_setup();
 
-  if (speed < 0) speed = 0;
-  if (speed > FAN_MAX_PCT) speed = FAN_MAX_PCT;
+  if (speed < 0)
+    speed = 0;
+  if (speed > FAN_MAX_PCT)
+    speed = FAN_MAX_PCT;
 
   pinMode(FAN_PIN, PWM_OUTPUT);
   pwm_setup();
@@ -296,8 +311,10 @@ Result svc_read_fan_status() {
 Result svc_set_window(int angle) {
   gpio_setup();
 
-  if (angle < 0) angle = 0;
-  if (angle > WINDOW_MAX_ANGLE) angle = WINDOW_MAX_ANGLE;
+  if (angle < 0)
+    angle = 0;
+  if (angle > WINDOW_MAX_ANGLE)
+    angle = WINDOW_MAX_ANGLE;
 
   pinMode(SERVO_PIN, PWM_OUTPUT);
   pwm_setup();
@@ -323,31 +340,32 @@ Result svc_read_window_position() {
 }
 
 // --- Service catalogue ---
-// One row per advertised vector: (RPi id, service name, #inputs, input names).
-
+// One row per service: (RPi id, service name, #inputs, input names).
 struct ServiceSpec {
   const char* entity;
   const char* name;
-  std::vector<const char*> inputs;
+  vector<const char*> inputs;
   const char* output;
 };
 
-const std::vector<ServiceSpec> CATALOGUE = {
-  { "ClimateSensor", "Calibrate_Sensor",{},         "int" },
-  { "ClimateSensor", "Read_Temp",{ "F_or_C" }, "int" },
-  { "ClimateSensor", "Read_Humidity",{},         "int" },
-  { "Fan",           "Fan_On",{ "speed" },  "int" },
-  { "Fan",           "Fan_Off",{},         "void" },
-  { "Fan",           "Read_Fan_Speed",{},         "int" },
-  { "Fan",           "Read_Fan_Status",{},         "int" },
-  { "Window",        "Set_Window",{ "angle" },  "int" },
-  { "Window",        "Window_Close",{},         "void" },
-  { "Window",        "Read_Window_Position",{},         "int" },
+// We built a catalogue so it's easier to edit the services we offer
+const vector<ServiceSpec> CATALOGUE = {
+    { "ClimateSensor", "Calibrate_Sensor",{}, "int" },
+    { "ClimateSensor", "Read_Temp",{ "F_or_C" }, "int" },
+    { "ClimateSensor", "Read_Humidity",{}, "int" },
+    { "Fan", "Fan_On",{ "speed" }, "int" },
+    { "Fan", "Fan_Off",{}, "void" },
+    { "Fan", "Read_Fan_Speed",{}, "int" },
+    { "Fan", "Read_Fan_Status",{}, "int" },
+    { "Window", "Set_Window",{ "angle" }, "int" },
+    { "Window", "Window_Close",{}, "void" },
+    { "Window", "Read_Window_Position",{}, "int" },
 };
 
-Result dispatch(const std::string& name, const std::vector<int>& inputs) {
+// This function is called when a service is needed, and it chooses the correct "svc" function to call
+Result dispatch(const string& name, const vector<int>& inputs) {
   const ServiceSpec* spec = nullptr;
-  for (const auto& s : CATALOGUE) {
+  for (const ServiceSpec& s : CATALOGUE) {
     if (name == s.name) {
       spec = &s;
       break;
@@ -358,7 +376,7 @@ Result dispatch(const std::string& name, const std::vector<int>& inputs) {
     return failure("Unknown Service");
 
   if (inputs.size() != spec->inputs.size())
-    return failure("Incorrect service arguments");
+    return failure("Incorrect number of input arguments for this service");
 
   if (name == "Calibrate_Sensor")     return svc_calibrate_sensor();
   if (name == "Read_Temp")            return svc_read_temp(inputs[0]);
@@ -376,9 +394,9 @@ Result dispatch(const std::string& name, const std::vector<int>& inputs) {
 
 // --- MQTT ---
 
-void mqtt_publish(const std::string& subtopic, const json& payload, int qos, bool retain) {
-  std::string body = payload.dump();
-  std::string topic = TOPIC_PREFIX + subtopic;
+void mqtt_publish(const string& subtopic, const json& payload, int qos, bool retain) {
+  string body = payload.dump();
+  string topic = TOPIC_PREFIX + subtopic;
   mosquitto_publish(mosq, nullptr, topic.c_str(), static_cast<int>(body.size()), body.c_str(), qos, retain);
 }
 
@@ -386,17 +404,16 @@ void publish_status(const char* status) {
   json payload;
   payload["status"] = status;
   mqtt_publish("status", payload, 1, true);
-  std::cout << "STATUS status=" << status << std::endl;
+  cout << "STATUS status=" << status << endl;
 }
 
-// Retained, so a dashboard opened at any moment immediately receives the
-// service vectors instead of waiting for the next advertisement.
 void publish_catalogue() {
   json services = json::array();
 
-  for (const auto& spec : CATALOGUE) {
+  for (const ServiceSpec& spec : CATALOGUE) {
     json names = json::array();
-    for (const char* input : spec.inputs) names.push_back(input);
+    for (const char* input : spec.inputs)
+      names.push_back(input);
 
     json item;
     item["rpi"] = RPI_ID;
@@ -408,14 +425,15 @@ void publish_catalogue() {
     services.push_back(item);
   }
 
+  // QoS is 1, so the state is retained for the user to know the status at any given moment it connects
   json payload;
   payload["thing"] = RPI_ID;
   payload["services"] = services;
   mqtt_publish("services", payload, 1, true);
-  std::cout << "SERVICES published (" << CATALOGUE.size() << ")" << std::endl;
+  cout << CATALOGUE.size() << " SERVICES published" << endl;
 }
 
-void publish_reply(long id, const std::string& service, const Result& result) {
+void publish_reply(long id, const string& service, const Result& result) {
   json payload;
   payload["id"] = id;
   payload["service"] = service;
@@ -427,52 +445,57 @@ void publish_reply(long id, const std::string& service, const Result& result) {
 
 void on_connect(struct mosquitto* m, void* obj, int rc) {
   if (rc != 0) {
-    std::cout << "MQTT connect failed: " << mosquitto_connack_string(rc) << std::endl;
+    cout << "MQTT connect failed: " << mosquitto_connack_string(rc) << endl;
     return;
   }
-  std::cout << "MQTT connected" << std::endl;
+  cout << "MQTT connected" << endl;
 
-  std::string sub = TOPIC_PREFIX + "call";
+  string sub = TOPIC_PREFIX + "call";
   mosquitto_subscribe(m, nullptr, sub.c_str(), 1);
 
-  publish_status("online");
+  // Publish the status ONLINE
+  json payload;
+  payload["status"] = "online";
+  mqtt_publish("status", payload, 1, true);
+  cout << "STATUS status=" << status << endl;
+
+  // We publish throuh an mqtt_publish() all the services we offer
   publish_catalogue();
 }
 
 void on_publish(struct mosquitto* m, void* obj, int mid) {
-  if (mid == pending_mid.load()) mid_acked = true;
+  if (mid == pending_mid.load())  mid_acked = true;
 }
 
-// Runs on the libmosquitto network thread. A DHT11 read blocks it for ~25 ms,
-// which is well inside the keepalive and acceptable at human call rates.
 void on_message(struct mosquitto* m, void* obj, const struct mosquitto_message* msg) {
-  if (msg->payloadlen <= 0 || msg->payload == nullptr) return;
+  if (msg->payloadlen <= 0 || msg->payload == nullptr)
+    return;
 
-  std::string topic(msg->topic);
+  string topic(msg->topic);
   if (topic != TOPIC_PREFIX + "call") return;
 
-  std::string payload(static_cast<char*>(msg->payload), msg->payloadlen);
+  string payload(static_cast<char*>(msg->payload), msg->payloadlen);
 
   json body;
   try {
     body = json::parse(payload);
   }
   catch (const json::parse_error&) {
-    std::cout << "IGNORED invalid JSON on " << topic << std::endl;
+    cerr << "IGNORED invalid JSON on " << topic << endl;
     return;
   }
 
-  std::cout << "CALL " << payload << std::endl;
+  cout << "CALL " << payload << endl;
 
-  long id = body.value("id", static_cast<long>(-1));
+  long id = body.value("id", -1L);
 
   if (!body.contains("service") || !body["service"].is_string()) {
     publish_reply(id, "", failure("Unknown Service"));
     return;
   }
-  std::string service = body["service"].get<std::string>();
+  string service = body["service"].get<string>();
 
-  std::vector<int> inputs;
+  vector<int> inputs;
   if (body.contains("inputs")) {
     if (!body["inputs"].is_array()) {
       publish_reply(id, service, failure("Incorrect service arguments"));
@@ -487,9 +510,12 @@ void on_message(struct mosquitto* m, void* obj, const struct mosquitto_message* 
     }
   }
 
+  // Considering the increased amount of service in comparison with Lab3 (and for scalability reasons),
+  // we preferred to use a dispatch function that handles it. This way the code is more readable and
+  // the on_message() function stays the same despite changing the services
   Result result = dispatch(service, inputs);
   publish_reply(id, service, result);
-  std::cout << "REPLY " << service << " " << result.description << std::endl;
+  cout << "REPLY " << service << " " << result.description << endl;
 }
 
 int main(int argc, char** argv) {
@@ -511,8 +537,8 @@ int main(int argc, char** argv) {
 
   json will_payload;
   will_payload["status"] = "offline";
-  std::string will_body = will_payload.dump();
-  std::string status_topic = TOPIC_PREFIX + "status";
+  string will_body = will_payload.dump();
+  string status_topic = TOPIC_PREFIX + "status";
   mosquitto_will_set(mosq, status_topic.c_str(), static_cast<int>(will_body.size()), will_body.c_str(), 1, true);
 
   mosquitto_connect_callback_set(mosq, on_connect);
@@ -521,7 +547,7 @@ int main(int argc, char** argv) {
   mosquitto_reconnect_delay_set(mosq, 1, 30, true);
 
   if (mosquitto_connect(mosq, host, port, 60) != MOSQ_ERR_SUCCESS) {
-    std::cerr << "Unable to connect to MQTT broker at " << host << ":" << port << std::endl;
+    cerr << "Unable to connect to MQTT broker at " << host << ":" << port << endl;
     return 1;
   }
   mosquitto_loop_start(mosq);
@@ -535,9 +561,9 @@ int main(int argc, char** argv) {
   int offline_mid = -1;
   json offline_payload;
   offline_payload["status"] = "offline";
-  std::string offline_body = offline_payload.dump();
+  string offline_body = offline_payload.dump();
   mosquitto_publish(mosq, &offline_mid, status_topic.c_str(), static_cast<int>(offline_body.size()), offline_body.c_str(), 1, true);
-  std::cout << "STATUS status=offline" << std::endl;
+  cout << "STATUS status=offline" << endl;
 
   // Wait for the PUBACK (bounded) instead of assuming send order.
   pending_mid = offline_mid;

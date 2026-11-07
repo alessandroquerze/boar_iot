@@ -94,7 +94,7 @@ void publish_state_max(size_t max) {
 }
 
 void publish_status(const char* status) {
-  mqtt_publish("status", { {"status", status} }, 1, true);
+  mqtt_publish("status", { { "status", status } }, 1, true);
   std::cout << "STATUS status=" << status << std::endl;
 }
 
