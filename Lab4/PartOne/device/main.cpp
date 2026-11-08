@@ -7,9 +7,8 @@
 // Topics, prefix vss/boar/ :
 //   services  device -> all   retained service catalogue, one vector per service
 //   call      edge   -> device {"id":7,"service":"Read_Temp","inputs":[0]}
-//   reply     device -> all    {"id":7,...,"status":"Successful","result":24}
+//   reply     device -> all    {"id":7,"Read_Temp","status":"Successful","result":24}
 //   status    device -> all    online / offline (LWT)
-
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -19,20 +18,18 @@
 #include <string>
 #include <thread>
 #include <vector>
-
-using namespace std::chrono_literals;
-using std::string;
-using std::vector;
-using std::cout;
-using std::cerr;
-using std::endl;
-
 #include <mosquitto.h>
 #include <nlohmann/json.hpp>
 #include <stdlib.h>
 #include <wiringPi.h>
 
+using namespace std::chrono_literals;
 using json = nlohmann::json;
+using std::string;
+using std::vector;
+using std::cout;
+using std::cerr;
+using std::endl;
 
 // --- Pin configuration (BCM) ---
 #define DHT_PIN 17
@@ -82,9 +79,8 @@ std::atomic<bool> mid_acked{ false };
 
 // --- Captures the SIGNALS that end the program ---
 void signal_handler(int signal) {
-  if (signal == SIGINT || signal == SIGTERM) {
+  if (signal == SIGINT || signal == SIGTERM)
     keep_running = false;
-  }
 }
 
 // Every service is self-contained. We don't want
@@ -119,85 +115,80 @@ void pwm_setup() {
 
 void write_state_int(const char* path, int value) {
   FILE* f = fopen(path, "w");
-  if (f == nullptr)
-    return;
+  if (f == nullptr) return;
   fprintf(f, "%d", value);
   fclose(f);
 }
 
 int read_state_int(const char* path, int max) {
   FILE* f = fopen(path, "r");
-  if (f == nullptr)
-    return 0;
+  if (f == nullptr) return 0;
 
   int value = 0;
-  if (fscanf(f, "%d", &value) != 1)
-    value = 0;
+  if (fscanf(f, "%d", &value) != 1) value = 0;
   fclose(f);
 
-  if (value < 0)
-    value = 0;
-  if (value > max)
-    value = max;
+  if (value < 0)    value = 0;
+  if (value > max)  value = max;
   return value;
 }
 
 // --- DHT11 (bit-banged, from test/motdhtservo.c) ---
 
-// Attende un livello logico con timeout
-int wait_level(int level, unsigned int timeout_us) {
+// Waits a level (HIGH or LOW) within a certain timeout (in us)
+bool wait_level(int level, unsigned int timeout_us) {
   unsigned int start = micros();
-
   while (digitalRead(DHT_PIN) != level) {
-    if ((unsigned int)(micros() - start) > timeout_us)
-      return 0;
+    if ((unsigned int)(micros() - start) > timeout_us)  return false;
   }
-
-  return 1;
+  return true;
 }
 
-// Returns 0 if the reading was successful. Both temperature and humidity (representing a percentage)
-// are integers, DHT11 doesn't have decimal precision
+// Returns 0 if the reading was successful. Both temperature and humidity (the second
+// representing a percentage) are integers, DHT11 doesn't provide decimal precision (in most of the cases)
 int read_dht11(int* temperature, int* humidity) {
-  unsigned char data[5] = { 0 };
-
+  // The RPi sends a LOW signal to the sensor for 20ms to wake it up
   pinMode(DHT_PIN, OUTPUT);
   digitalWrite(DHT_PIN, LOW);
   delay(20);
 
+  /* Now the RPi is listening for the acknowledgement signal from the sensor.
+   * It has to give this sequence of signals:
+   *   1. LOW for 80us
+   *   2. HIGH for 80us
+   *
+   * If the signal is not exactly in this sequence (or if no signal is received at all),
+   * it returns -1 and aborts the reading.
+   */
   pinMode(DHT_PIN, INPUT);
   pullUpDnControl(DHT_PIN, PUD_UP);
+  if (!wait_level(HIGH, 100)) return -1;
+  if (!wait_level(LOW, 100))  return -1;
+  if (!wait_level(HIGH, 120)) return -1;
+  if (!wait_level(LOW, 120))  return -1;
 
-  if (!wait_level(HIGH, 100))
-    return -1;
-  if (!wait_level(LOW, 100))
-    return -1;
-  if (!wait_level(HIGH, 120))
-    return -1;
-  if (!wait_level(LOW, 120))
-    return -1;
-
+  // Here starts the reading of 40 bit of data. The first 2 bytes
+  // are humidity, the following 2 are temperature
+  unsigned char data[5] = { 0 };
   for (int i = 0; i < 40; i++) {
-    if (!wait_level(HIGH, 100))
-      return -1;
-
+    // If the signal doesn't arrive, return -1
+    if (!wait_level(HIGH, 100)) return -1;
     unsigned int start = micros();
+    if (!wait_level(LOW, 120))  return -1;
 
-    if (!wait_level(LOW, 120))
-      return -1;
-
+    // Here we calculate the duration of the signal: if the signal was greater than
+    // 50us than it would represent a '1', whereas if it was less than 50us it's a '0'
     unsigned int duration = micros() - start;
-    data[i / 8] <<= 1;
-
+    data[i / 8] = data[i / 8] << 1;   // Left shift of 1 bit
     if (duration > 50)
-      data[i / 8] |= 1;
+      data[i / 8] = data[i / 8] | 1;  // OR between the last bit of data and '1'
   }
 
+  // Checksum checking (the fifth byte is the checksum)
   unsigned char checksum = (data[0] + data[1] + data[2] + data[3]) & 0xFF;
+  if (checksum != data[4])  return -1;
 
-  if (checksum != data[4])
-    return -1;
-
+  // We retrieve the integer part
   *humidity = data[0];
   *temperature = data[2];
 
@@ -205,16 +196,12 @@ int read_dht11(int* temperature, int* humidity) {
 }
 
 // The function retries the reading, the first ones can be erroneous
-int read_dht11_retry(int* temperature, int* humidity) {
+bool read_dht11_retry(int* temperature, int* humidity) {
   for (int attempt = 0; attempt < DHT_ATTEMPTS; attempt++) {
-    if (attempt > 0)
-      delay(DHT_RETRY_MS);
-
-    if (read_dht11(temperature, humidity) == 0)
-      return 0;
+    if (read_dht11(temperature, humidity) == 0) return true;
+    delay(DHT_RETRY_MS);
   }
-
-  return -1;
+  return false;
 }
 
 // --- Service results ---
@@ -243,42 +230,31 @@ Result svc_calibrate_sensor() {
   // Priming read: the DHT11's first conversion after an idle period often fails,
   // so this is what an order-based "A THEN B" is meant to guard.
   int temperature, humidity;
-  if (read_dht11_retry(&temperature, &humidity) != 0)
-    return failure("Sensor read failed");
-
-  return success(1);
+  bool read_ok = read_dht11_retry(&temperature, &humidity);
+  return read_ok ? success(1) : failure("Sensor read failed");
 }
 
 Result svc_read_temp(int f_or_c) {
   gpio_setup();
-
   int temperature, humidity;
-  if (read_dht11_retry(&temperature, &humidity) != 0)
+  if (!read_dht11_retry(&temperature, &humidity))
     return failure("Sensor read failed");
 
-  if (f_or_c == 1)
-    return success(temperature * 9 / 5 + 32);
-
+  if (f_or_c == 1) temperature = temperature * 9 / 5 + 32;
   return success(temperature);
 }
 
 Result svc_read_humidity() {
   gpio_setup();
-
   int temperature, humidity;
-  if (read_dht11_retry(&temperature, &humidity) != 0)
-    return failure("Sensor read failed");
-
-  return success(humidity);
+  int read_ok = read_dht11_retry(&temperature, &humidity);
+  return read_ok ? success(humidity) : failure("Sensor read failed");
 }
 
 Result svc_fan_on(int speed) {
   gpio_setup();
-
-  if (speed < 0)
-    speed = 0;
-  if (speed > FAN_MAX_PCT)
-    speed = FAN_MAX_PCT;
+  if (speed < 0)            speed = 0;
+  if (speed > FAN_MAX_PCT)  speed = FAN_MAX_PCT;
 
   pinMode(FAN_PIN, PWM_OUTPUT);
   pwm_setup();
@@ -310,11 +286,8 @@ Result svc_read_fan_status() {
 
 Result svc_set_window(int angle) {
   gpio_setup();
-
-  if (angle < 0)
-    angle = 0;
-  if (angle > WINDOW_MAX_ANGLE)
-    angle = WINDOW_MAX_ANGLE;
+  if (angle < 0)                angle = 0;
+  if (angle > WINDOW_MAX_ANGLE) angle = WINDOW_MAX_ANGLE;
 
   pinMode(SERVO_PIN, PWM_OUTPUT);
   pwm_setup();
@@ -372,8 +345,7 @@ Result dispatch(const string& name, const vector<int>& inputs) {
     }
   }
 
-  if (spec == nullptr)
-    return failure("Unknown Service");
+  if (spec == nullptr)  return failure("Unknown Service");
 
   if (inputs.size() != spec->inputs.size())
     return failure("Incorrect number of input arguments for this service");
@@ -464,12 +436,12 @@ void on_connect(struct mosquitto* m, void* obj, int rc) {
 }
 
 void on_publish(struct mosquitto* m, void* obj, int mid) {
-  if (mid == pending_mid.load())  mid_acked = true;
+  if (mid == pending_mid.load())
+    mid_acked = true;
 }
 
 void on_message(struct mosquitto* m, void* obj, const struct mosquitto_message* msg) {
-  if (msg->payloadlen <= 0 || msg->payload == nullptr)
-    return;
+  if (msg->payloadlen <= 0 || msg->payload == nullptr)  return;
 
   string topic(msg->topic);
   if (topic != TOPIC_PREFIX + "call") return;
@@ -552,8 +524,7 @@ int main(int argc, char** argv) {
   }
   mosquitto_loop_start(mosq);
 
-  // Here, unlike Lab3, there are no buttons to
-  // actively wait for, so the while is empty
+  // Here, unlike Lab3, there are no buttons to actively wait for, so the while is empty
   while (keep_running) {
     std::this_thread::sleep_for(100ms);
   }
@@ -571,7 +542,6 @@ int main(int argc, char** argv) {
   while (!mid_acked.load() && std::chrono::steady_clock::now() < deadline) {
     std::this_thread::sleep_for(10ms);
   }
-
   mosquitto_disconnect(mosq);
   cleanup_gpio();
 
