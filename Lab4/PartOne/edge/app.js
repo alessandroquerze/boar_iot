@@ -11,42 +11,11 @@ const TOPIC_PREFIX = "vss/boar/";
 const DEFAULT_RPI = "RPi1";
 const CALL_TIMEOUT_MS = 10000;
 const STORAGE_KEY = "vss_host";
-
-// Symbolic argument values accepted by the IDE. The wire protocol and Atlas take
-// integers only, so these are translated before the call goes out.
 const ARG_ALIASES = { C: 0, F: 1 };
 
 // Rendered next to an input name in the catalogue, so the symbolic form is
 // discoverable without opening the grammar panel.
 const INPUT_HINTS = { F_or_C: "C|F" };
-
-const EXAMPLE_PROGRAM = `// a single call needs no THEN
-RUN  RPi1.Read_Humidity()
-
-// order-based: B runs only after A succeeds
-RUN  RPi1.Calibrate_Sensor()
-THEN RPi1.Read_Temp(C)
-
-// order-based: set, then verify what was actually applied
-RUN  RPi1.Set_Window(40)
-THEN RPi1.Read_Window_Position()
-
-// condition-based: compound test, several commands, a nested IF
-IF   RPi1.Read_Temp(C) > 28 AND RPi1.Read_Humidity() > 60
-DO   RPi1.Fan_On(75)
-     RPi1.Set_Window(40)
-     IF   RPi1.Read_Fan_Status() == 1
-     DO   RPi1.Read_Fan_Speed()
-     END
-ELSE RPi1.Fan_Off()
-     RPi1.Window_Close()
-END
-
-// OR, and a predicate that reads an actuator back instead of a sensor
-IF   RPi1.Read_Fan_Status() == 0 OR RPi1.Read_Window_Position() > 20
-DO   RPi1.Fan_On(60)
-END
-`;
 
 const hostInput = document.getElementById("host");
 const connectBtn = document.getElementById("connectBtn");
@@ -55,7 +24,6 @@ const deviceStatus = document.getElementById("deviceStatus");
 const catalogueBody = document.getElementById("catalogueBody");
 const programInput = document.getElementById("program");
 const runBtn = document.getElementById("runBtn");
-const exampleBtn = document.getElementById("exampleBtn");
 const clearLogBtn = document.getElementById("clearLogBtn");
 const logPanel = document.getElementById("log");
 const message = document.getElementById("message");
@@ -636,15 +604,10 @@ function connect() {
 
 connectBtn.addEventListener("click", connect);
 runBtn.addEventListener("click", runProgram);
-exampleBtn.addEventListener("click", () => {
-  programInput.value = EXAMPLE_PROGRAM;
-});
 clearLogBtn.addEventListener("click", () => {
   logPanel.replaceChildren();
   showMessage("");
 });
-
-programInput.value = EXAMPLE_PROGRAM;
 
 // Restore the last used host and auto-connect.
 const savedHost = localStorage.getItem(STORAGE_KEY);
