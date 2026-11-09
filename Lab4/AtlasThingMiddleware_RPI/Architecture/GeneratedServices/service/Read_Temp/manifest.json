@@ -1,0 +1,9 @@
+
+{
+	"bundle.symbolic_name": "Read_Temp",
+	"bundle.activator":     true,
+	"bundle.name"         : "Service Read_Temp",
+	"bundle.description"  : "This bundle is service type"
+}
+
+

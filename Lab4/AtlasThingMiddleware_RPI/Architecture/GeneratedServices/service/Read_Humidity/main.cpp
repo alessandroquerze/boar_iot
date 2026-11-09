@@ -34,47 +34,53 @@ class ServiceRead_Humidity : public Service
 		// codegen will be more advanced/fine-grained, eventually
 		// for now, the whole function body is specified in the DDL `<Source>'
 		
-		#define DHT_PIN    17
-		
-		unsigned char data[5] = { 0 };
-		
 		wiringPiSetupGpio();
 		
-		pinMode(DHT_PIN, OUTPUT);
+		int dhtPin = 17;
 		
-		digitalWrite(DHT_PIN, LOW);
+		pinMode(dhtPin, OUTPUT);
+		
+		digitalWrite(dhtPin, LOW);
 		
 		delay(20);
 		
-		pinMode(DHT_PIN, INPUT);
+		pinMode(dhtPin, INPUT);
 		
-		pullUpDnControl(DHT_PIN, PUD_UP);
+		pullUpDnControl(dhtPin, PUD_UP);
 		
-		for (int i = 0; i < 40; i++) {
+		unsigned int t_start = micros();
 		
-		    if (!wait_level(HIGH, 100))
-		
-		    unsigned int start = micros();
-		
-		    if (!wait_level(LOW, 120))
-		
-		    unsigned int duration = micros() - start;
-		
-		    data[i / 8] <<= 1;
-		
-		    if (duration > 50)
-		
-		        data[i / 8] |= 1;
+		while (digitalRead(dhtPin) == LOW) {
 		
 		}
 		
-		unsigned char checksum = (data[0] + data[1] + data[2] + data[3]) & 0xFF;
+		t_start = micros();
 		
-		if (checksum != data[4])
+		while (digitalRead(dhtPin) == HIGH) {
 		
-		*humidity = data[0];
+		}
 		
-		*temperature = data[2];
+		unsigned char dht_data[5] = {0, 0, 0, 0, 0};
+		
+		for (int i = 0; i < 40; i++) {
+		
+		    t_start = micros();
+		
+		    while (digitalRead(dhtPin) == LOW) {
+		
+		    }
+		
+		    unsigned int pulse_start = micros();
+		
+		    while (digitalRead(dhtPin) == HIGH) {
+		
+		    }
+		
+		    dht_data[i / 8] <<= 1;
+		
+		    if ((micros() - pulse_start) > 50) dht_data[i / 8] |= 1;
+		
+		}
 		
 		
 		// cast the static storage to a generic return type

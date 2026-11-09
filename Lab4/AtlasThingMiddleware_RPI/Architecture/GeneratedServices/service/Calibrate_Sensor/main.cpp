@@ -34,19 +34,77 @@ class ServiceCalibrate_Sensor : public Service
 		// codegen will be more advanced/fine-grained, eventually
 		// for now, the whole function body is specified in the DDL `<Source>'
 		
-		#define DHT_ATTEMPTS 3
-		
-		#define DHT_RETRY_MS 1100
-		
 		wiringPiSetupGpio();
 		
-		for (int attempt = 0; attempt < DHT_ATTEMPTS; attempt++) {
+		int dhtPin = 17;
 		
-		    if (attempt > 0) delay(DHT_RETRY_MS);
+		for (int attempt = 0; attempt < 3; attempt++) {
+		
+		    if (attempt > 0) delay(1100);
+		
+		    pinMode(dhtPin, OUTPUT);
+		
+		    digitalWrite(dhtPin, LOW);
+		
+		    delay(20);
+		
+		    pinMode(dhtPin, INPUT);
+		
+		    pullUpDnControl(dhtPin, PUD_UP);
 		
 		    
 		
-		    if (read_dht11(temperature, humidity) == 0)
+		    unsigned int t_start = micros();
+		
+		    while (digitalRead(dhtPin) == LOW) {
+		
+		        if ((micros() - t_start) > 100) break;
+		
+		    }
+		
+		    t_start = micros();
+		
+		    while (digitalRead(dhtPin) == HIGH) {
+		
+		        if ((micros() - t_start) > 100) break;
+		
+		    }
+		
+		    
+		
+		    unsigned char dht_data[5] = {0, 0, 0, 0, 0};
+		
+		    bool valid = true;
+		
+		    for (int i = 0; i < 40; i++) {
+		
+		        t_start = micros();
+		
+		        while (digitalRead(dhtPin) == LOW) {
+		
+		            if ((micros() - t_start) > 100) { valid = false; break; }
+		
+		        }
+		
+		        unsigned int pulse_start = micros();
+		
+		        while (digitalRead(dhtPin) == HIGH) {
+		
+		            if ((micros() - pulse_start) > 120) { valid = false; break; }
+		
+		        }
+		
+		        if (!valid) break;
+		
+		        dht_data[i / 8] <<= 1;
+		
+		        if ((micros() - pulse_start) > 50) dht_data[i / 8] |= 1;
+		
+		    }
+		
+		    if (valid && ((dht_data[0] + dht_data[1] + dht_data[2] + dht_data[3]) & 0xFF) == dht_data[4]) {
+		
+		    }
 		
 		}
 		

@@ -1,0 +1,9 @@
+
+{
+	"bundle.symbolic_name": "Calibrate_Sensor",
+	"bundle.activator":     true,
+	"bundle.name"         : "Service Calibrate_Sensor",
+	"bundle.description"  : "This bundle is service type"
+}
+
+
