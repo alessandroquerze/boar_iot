@@ -36,33 +36,47 @@ class ServiceFan_On : public Service
 		// codegen will be more advanced/fine-grained, eventually
 		// for now, the whole function body is specified in the DDL `<Source>'
 		
-		int applySpeed = speed;
+		#define FAN_PIN     13
 		
-		if (applySpeed < 0) applySpeed = 0;
+		#define FAN_MAX_PCT 75
 		
-		if (applySpeed > 75) applySpeed = 75;
+		#define PWM_CLOCK  192
+		
+		#define PWM_RANGE  2000
+		
+		/* clamp the speed to 0-75 percent so the motor never gets full voltage */
+		
+		if (speed < 0) speed = 0;
+		
+		if (speed > FAN_MAX_PCT) speed = FAN_MAX_PCT;
+		
+		/* hardware PWM channel 1; same clock and range as the servo on channel 0 */
 		
 		wiringPiSetupGpio();
 		
-		pinMode(13, PWM_OUTPUT);
+		pinMode(FAN_PIN, PWM_OUTPUT);
 		
 		pwmSetMode(PWM_MODE_MS);
 		
-		pwmSetClock(192);
+		pwmSetClock(PWM_CLOCK);
 		
-		pwmSetRange(2000);
+		pwmSetRange(PWM_RANGE);
 		
-		pwmWrite(13, applySpeed * 2000 / 100);
+		pwmWrite(FAN_PIN, speed * PWM_RANGE / 100);
+		
+		/* remember the commanded speed: the motor cannot be read back */
 		
 		FILE* f = fopen("/tmp/fan_speed", "w");
 		
-		if (f != NULL) {
+		if (f != nullptr) {
 		
-		    fprintf(f, "%d", applySpeed);
+		    fprintf(f, "%d", speed);
 		
 		    fclose(f);
 		
 		}
+		
+		Turns_on_fan = speed;
 		
 		
 		// cast the static storage to a generic return type

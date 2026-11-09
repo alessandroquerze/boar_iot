@@ -1,0 +1,9 @@
+
+{
+	"bundle.symbolic_name": "Window_Close",
+	"bundle.activator":     true,
+	"bundle.name"         : "Service Window_Close",
+	"bundle.description"  : "This bundle is service type"
+}
+
+

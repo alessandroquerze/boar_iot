@@ -118,45 +118,58 @@
 					<OutputDescription>Calibrates_the_sensor</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
+#define DHT_PIN      17
+#define DHT_ATTEMPTS 3
+#define DHT_RETRY_MS 1100
+
+/* DHT11 read, inlined: Atlas has no shared helpers between services */
+unsigned char data[5];
+int ok = 0;
+int levels[4] = { HIGH, LOW, HIGH, LOW };
+unsigned int limits[4] = { 100, 100, 120, 120 };
+
 wiringPiSetupGpio();
-int dhtPin = 17;
-for (int attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) delay(1100);
-    pinMode(dhtPin, OUTPUT);
-    digitalWrite(dhtPin, LOW);
+for (int attempt = 0; attempt < DHT_ATTEMPTS && !ok; attempt++) {
+    if (attempt > 0) delay(DHT_RETRY_MS);
+    for (int k = 0; k < 5; k++) data[k] = 0;
+
+    /* wake-up pulse: hold the line LOW for 20 ms, then release it */
+    pinMode(DHT_PIN, OUTPUT);
+    digitalWrite(DHT_PIN, LOW);
     delay(20);
-    pinMode(dhtPin, INPUT);
-    pullUpDnControl(dhtPin, PUD_UP);
-    
-    unsigned int t_start = micros();
-    while (digitalRead(dhtPin) == LOW) {
-        if ((micros() - t_start) > 100) break;
-    }
-    t_start = micros();
-    while (digitalRead(dhtPin) == HIGH) {
-        if ((micros() - t_start) > 100) break;
-    }
-    
-    unsigned char dht_data[5] = {0, 0, 0, 0, 0};
-    bool valid = true;
-    for (int i = 0; i < 40; i++) {
-        t_start = micros();
-        while (digitalRead(dhtPin) == LOW) {
-            if ((micros() - t_start) > 100) { valid = false; break; }
+    pinMode(DHT_PIN, INPUT);
+    pullUpDnControl(DHT_PIN, PUD_UP);
+
+    /* handshake: the sensor answers LOW 80 us then HIGH 80 us */
+    int good = 1;
+    for (int s = 0; s < 4 && good; s++) {
+        unsigned int t0 = micros();
+        while (good && digitalRead(DHT_PIN) != levels[s]) {
+            if (micros() - t0 > limits[s]) good = 0;
         }
-        unsigned int pulse_start = micros();
-        while (digitalRead(dhtPin) == HIGH) {
-            if ((micros() - pulse_start) > 120) { valid = false; break; }
+    }
+
+    /* 40 data bits: a HIGH pulse longer than 50 us is a 1 */
+    for (int i = 0; i < 40 && good; i++) {
+        unsigned int t0 = micros();
+        while (good && digitalRead(DHT_PIN) != HIGH) {
+            if (micros() - t0 > 100) good = 0;
         }
-        if (!valid) break;
-        dht_data[i / 8] <<= 1;
-        if ((micros() - pulse_start) > 50) dht_data[i / 8] |= 1;
+        unsigned int start = micros();
+        while (good && digitalRead(DHT_PIN) != LOW) {
+            if (micros() - start > 120) good = 0;
+        }
+        unsigned int duration = micros() - start;
+        data[i / 8] = data[i / 8] << 1;
+        if (duration > 50) data[i / 8] = data[i / 8] | 1;
     }
-    if (valid && ((dht_data[0] + dht_data[1] + dht_data[2] + dht_data[3]) & 0xFF) == dht_data[4]) {
-        return 1;
-    }
+
+    /* the fifth byte is the checksum of the first four */
+    if (good && ((data[0] + data[1] + data[2] + data[3]) & 0xFF) == data[4]) ok = 1;
 }
-return -1;
+
+/* 1 = sensor answered within 3 attempts, -1 = it did not */
+Calibrates_the_sensor = ok ? 1 : -1;
 ]]></Service_Formula>
 					<Service_NumberInputs>0</Service_NumberInputs>
 					<Service_InputTypes></Service_InputTypes>
@@ -189,42 +202,60 @@ return -1;
 					<OutputDescription>Returns_temperature</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
+#define DHT_PIN      17
+#define DHT_ATTEMPTS 3
+#define DHT_RETRY_MS 1100
+
+/* DHT11 read, inlined: Atlas has no shared helpers between services */
+unsigned char data[5];
+int ok = 0;
+int levels[4] = { HIGH, LOW, HIGH, LOW };
+unsigned int limits[4] = { 100, 100, 120, 120 };
+
 wiringPiSetupGpio();
-int dhtPin = 17;
-pinMode(dhtPin, OUTPUT);
-digitalWrite(dhtPin, LOW);
-delay(20);
-pinMode(dhtPin, INPUT);
-pullUpDnControl(dhtPin, PUD_UP);
+for (int attempt = 0; attempt < DHT_ATTEMPTS && !ok; attempt++) {
+    if (attempt > 0) delay(DHT_RETRY_MS);
+    for (int k = 0; k < 5; k++) data[k] = 0;
 
-unsigned int t_start = micros();
-while (digitalRead(dhtPin) == LOW) {
-    if ((micros() - t_start) > 100) return -1;
-}
-t_start = micros();
-while (digitalRead(dhtPin) == HIGH) {
-    if ((micros() - t_start) > 100) return -1;
-}
+    /* wake-up pulse: hold the line LOW for 20 ms, then release it */
+    pinMode(DHT_PIN, OUTPUT);
+    digitalWrite(DHT_PIN, LOW);
+    delay(20);
+    pinMode(DHT_PIN, INPUT);
+    pullUpDnControl(DHT_PIN, PUD_UP);
 
-unsigned char dht_data[5] = {0, 0, 0, 0, 0};
-for (int i = 0; i < 40; i++) {
-    t_start = micros();
-    while (digitalRead(dhtPin) == LOW) {
-        if ((micros() - t_start) > 100) return -1;
+    /* handshake: the sensor answers LOW 80 us then HIGH 80 us */
+    int good = 1;
+    for (int s = 0; s < 4 && good; s++) {
+        unsigned int t0 = micros();
+        while (good && digitalRead(DHT_PIN) != levels[s]) {
+            if (micros() - t0 > limits[s]) good = 0;
+        }
     }
-    unsigned int pulse_start = micros();
-    while (digitalRead(dhtPin) == HIGH) {
-        if ((micros() - pulse_start) > 120) return -1;
+
+    /* 40 data bits: a HIGH pulse longer than 50 us is a 1 */
+    for (int i = 0; i < 40 && good; i++) {
+        unsigned int t0 = micros();
+        while (good && digitalRead(DHT_PIN) != HIGH) {
+            if (micros() - t0 > 100) good = 0;
+        }
+        unsigned int start = micros();
+        while (good && digitalRead(DHT_PIN) != LOW) {
+            if (micros() - start > 120) good = 0;
+        }
+        unsigned int duration = micros() - start;
+        data[i / 8] = data[i / 8] << 1;
+        if (duration > 50) data[i / 8] = data[i / 8] | 1;
     }
-    dht_data[i / 8] <<= 1;
-    if ((micros() - pulse_start) > 50) dht_data[i / 8] |= 1;
+
+    /* the fifth byte is the checksum of the first four */
+    if (good && ((data[0] + data[1] + data[2] + data[3]) & 0xFF) == data[4]) ok = 1;
 }
 
-if (((dht_data[0] + dht_data[1] + dht_data[2] + dht_data[3]) & 0xFF) != dht_data[4]) return -1;
-
-int temperature = dht_data[2];
-if (F_or_C == 1) return (temperature * 9 / 5) + 32;
-return temperature;
+/* data[2] is the integer part of the temperature in C; F_or_C 1 = Fahrenheit; -1 = read failed */
+if (!ok) Returns_temperature = -1;
+else if (F_or_C == 1) Returns_temperature = data[2] * 9 / 5 + 32;
+else Returns_temperature = data[2];
 ]]></Service_Formula>
 					<Service_NumberInputs>1</Service_NumberInputs>
 					<Service_InputTypes>int</Service_InputTypes>
@@ -257,40 +288,58 @@ return temperature;
 					<OutputDescription>Returns_humidity</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
+#define DHT_PIN      17
+#define DHT_ATTEMPTS 3
+#define DHT_RETRY_MS 1100
+
+/* DHT11 read, inlined: Atlas has no shared helpers between services */
+unsigned char data[5];
+int ok = 0;
+int levels[4] = { HIGH, LOW, HIGH, LOW };
+unsigned int limits[4] = { 100, 100, 120, 120 };
+
 wiringPiSetupGpio();
-int dhtPin = 17;
-pinMode(dhtPin, OUTPUT);
-digitalWrite(dhtPin, LOW);
-delay(20);
-pinMode(dhtPin, INPUT);
-pullUpDnControl(dhtPin, PUD_UP);
+for (int attempt = 0; attempt < DHT_ATTEMPTS && !ok; attempt++) {
+    if (attempt > 0) delay(DHT_RETRY_MS);
+    for (int k = 0; k < 5; k++) data[k] = 0;
 
-unsigned int t_start = micros();
-while (digitalRead(dhtPin) == LOW) {
-    if ((micros() - t_start) > 100) return -1;
-}
-t_start = micros();
-while (digitalRead(dhtPin) == HIGH) {
-    if ((micros() - t_start) > 100) return -1;
-}
+    /* wake-up pulse: hold the line LOW for 20 ms, then release it */
+    pinMode(DHT_PIN, OUTPUT);
+    digitalWrite(DHT_PIN, LOW);
+    delay(20);
+    pinMode(DHT_PIN, INPUT);
+    pullUpDnControl(DHT_PIN, PUD_UP);
 
-unsigned char dht_data[5] = {0, 0, 0, 0, 0};
-for (int i = 0; i < 40; i++) {
-    t_start = micros();
-    while (digitalRead(dhtPin) == LOW) {
-        if ((micros() - t_start) > 100) return -1;
+    /* handshake: the sensor answers LOW 80 us then HIGH 80 us */
+    int good = 1;
+    for (int s = 0; s < 4 && good; s++) {
+        unsigned int t0 = micros();
+        while (good && digitalRead(DHT_PIN) != levels[s]) {
+            if (micros() - t0 > limits[s]) good = 0;
+        }
     }
-    unsigned int pulse_start = micros();
-    while (digitalRead(dhtPin) == HIGH) {
-        if ((micros() - pulse_start) > 120) return -1;
+
+    /* 40 data bits: a HIGH pulse longer than 50 us is a 1 */
+    for (int i = 0; i < 40 && good; i++) {
+        unsigned int t0 = micros();
+        while (good && digitalRead(DHT_PIN) != HIGH) {
+            if (micros() - t0 > 100) good = 0;
+        }
+        unsigned int start = micros();
+        while (good && digitalRead(DHT_PIN) != LOW) {
+            if (micros() - start > 120) good = 0;
+        }
+        unsigned int duration = micros() - start;
+        data[i / 8] = data[i / 8] << 1;
+        if (duration > 50) data[i / 8] = data[i / 8] | 1;
     }
-    dht_data[i / 8] <<= 1;
-    if ((micros() - pulse_start) > 50) dht_data[i / 8] |= 1;
+
+    /* the fifth byte is the checksum of the first four */
+    if (good && ((data[0] + data[1] + data[2] + data[3]) & 0xFF) == data[4]) ok = 1;
 }
 
-if (((dht_data[0] + dht_data[1] + dht_data[2] + dht_data[3]) & 0xFF) != dht_data[4]) return -1;
-
-return dht_data[0];
+/* data[0] is the integer part of the relative humidity in percent; -1 = read failed */
+Returns_humidity = ok ? data[0] : -1;
 ]]></Service_Formula>
 					<Service_NumberInputs>0</Service_NumberInputs>
 					<Service_InputTypes></Service_InputTypes>
@@ -343,24 +392,31 @@ return dht_data[0];
 					<OutputDescription>Turns_on_fan</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
-int applySpeed = speed;
-if (applySpeed < 0) applySpeed = 0;
-if (applySpeed > 75) applySpeed = 75;
+#define FAN_PIN     13
+#define FAN_MAX_PCT 75
+#define PWM_CLOCK  192
+#define PWM_RANGE  2000
 
+/* clamp the speed to 0-75 percent so the motor never gets full voltage */
+if (speed < 0) speed = 0;
+if (speed > FAN_MAX_PCT) speed = FAN_MAX_PCT;
+
+/* hardware PWM channel 1; same clock and range as the servo on channel 0 */
 wiringPiSetupGpio();
-pinMode(13, PWM_OUTPUT);
+pinMode(FAN_PIN, PWM_OUTPUT);
 pwmSetMode(PWM_MODE_MS);
-pwmSetClock(192);
-pwmSetRange(2000);
-pwmWrite(13, applySpeed * 2000 / 100);
+pwmSetClock(PWM_CLOCK);
+pwmSetRange(PWM_RANGE);
+pwmWrite(FAN_PIN, speed * PWM_RANGE / 100);
 
+/* remember the commanded speed: the motor cannot be read back */
 FILE* f = fopen(\"/tmp/fan_speed\", \"w\");
-if (f != NULL) {
-    fprintf(f, \"%d\", applySpeed);
+if (f != nullptr) {
+    fprintf(f, \"%d\", speed);
     fclose(f);
 }
 
-return applySpeed;
+Turns_on_fan = speed;
 ]]></Service_Formula>
 					<Service_NumberInputs>1</Service_NumberInputs>
 					<Service_InputTypes>int</Service_InputTypes>
@@ -393,15 +449,20 @@ return applySpeed;
 					<OutputDescription>Turns_off_fan</OutputDescription>
 					<OutputType>void</OutputType>
 					<Service_Formula><![CDATA[
+#define FAN_PIN 13
+#define PWM_CLOCK  192
+#define PWM_RANGE  2000
+
+/* duty cycle 0 stops the motor; keep the shared clock and range for the servo */
 wiringPiSetupGpio();
-pinMode(13, PWM_OUTPUT);
+pinMode(FAN_PIN, PWM_OUTPUT);
 pwmSetMode(PWM_MODE_MS);
-pwmSetClock(192);
-pwmSetRange(2000);
-pwmWrite(13, 0);
+pwmSetClock(PWM_CLOCK);
+pwmSetRange(PWM_RANGE);
+pwmWrite(FAN_PIN, 0);
 
 FILE* f = fopen(\"/tmp/fan_speed\", \"w\");
-if (f != NULL) {
+if (f != nullptr) {
     fprintf(f, \"%d\", 0);
     fclose(f);
 }
@@ -437,16 +498,19 @@ if (f != NULL) {
 					<OutputDescription>Returns_fan_speed</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
-FILE* f = fopen(\"/tmp/fan_speed\", \"r\");
-if (f == NULL) return 0;
+#define FAN_MAX_PCT 75
 
+/* last commanded speed, 0 if the fan was never started */
 int value = 0;
-if (fscanf(f, \"%d\", &value) != 1) value = 0;
-fclose(f);
-
+FILE* f = fopen(\"/tmp/fan_speed\", \"r\");
+if (f != nullptr) {
+    if (fscanf(f, \"%d\", &value) != 1) value = 0;
+    fclose(f);
+}
 if (value < 0) value = 0;
-if (value > 75) value = 75;
-return value;
+if (value > FAN_MAX_PCT) value = FAN_MAX_PCT;
+
+Returns_fan_speed = value;
 ]]></Service_Formula>
 					<Service_NumberInputs>0</Service_NumberInputs>
 					<Service_InputTypes></Service_InputTypes>
@@ -479,14 +543,15 @@ return value;
 					<OutputDescription>Returns_fan_status</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
-FILE* f = fopen(\"/tmp/fan_speed\", \"r\");
-if (f == NULL) return 0;
-
+/* 1 = fan on (last commanded speed above 0), 0 = off */
 int value = 0;
-if (fscanf(f, \"%d\", &value) != 1) value = 0;
-fclose(f);
+FILE* f = fopen(\"/tmp/fan_speed\", \"r\");
+if (f != nullptr) {
+    if (fscanf(f, \"%d\", &value) != 1) value = 0;
+    fclose(f);
+}
 
-return (value <= 0) ? 0 : 1;
+Returns_fan_status = (value > 0) ? 1 : 0;
 ]]></Service_Formula>
 					<Service_NumberInputs>0</Service_NumberInputs>
 					<Service_InputTypes></Service_InputTypes>
@@ -555,24 +620,33 @@ return (value <= 0) ? 0 : 1;
 					<OutputDescription>Opens_window</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
-int applyAngle = angle;
-if (applyAngle < 0) applyAngle = 0;
-if (applyAngle > 50) applyAngle = 50;
+#define SERVO_PIN        18
+#define SERVO_CLOSED_PWM 150
+#define WINDOW_MAX_ANGLE 50
+#define SERVO_TICKS_180  200
+#define PWM_CLOCK  192
+#define PWM_RANGE  2000
 
+/* the window opens 0-50 degrees from the closed (centred) position */
+if (angle < 0) angle = 0;
+if (angle > WINDOW_MAX_ANGLE) angle = WINDOW_MAX_ANGLE;
+
+/* 50 Hz hardware PWM on channel 0: 150 ticks = 1.5 ms pulse = closed */
 wiringPiSetupGpio();
-pinMode(18, PWM_OUTPUT);
+pinMode(SERVO_PIN, PWM_OUTPUT);
 pwmSetMode(PWM_MODE_MS);
-pwmSetClock(192);
-pwmSetRange(2000);
-pwmWrite(18, 150 + (applyAngle * 200) / 180);
+pwmSetClock(PWM_CLOCK);
+pwmSetRange(PWM_RANGE);
+pwmWrite(SERVO_PIN, SERVO_CLOSED_PWM + (angle * SERVO_TICKS_180) / 180);
 
-FILE* f = fopen(\"/tmp/window_angle\", "w");
-if (f != NULL) {
-    fprintf(f, \"%d\", applyAngle);
+/* remember the commanded angle: the servo cannot be read back */
+FILE* f = fopen(\"/tmp/window_angle\", \"w\");
+if (f != nullptr) {
+    fprintf(f, \"%d\", angle);
     fclose(f);
 }
 
-return applyAngle;
+Opens_window = angle;
 ]]></Service_Formula>
 					<Service_NumberInputs>1</Service_NumberInputs>
 					<Service_InputTypes>int</Service_InputTypes>
@@ -605,15 +679,21 @@ return applyAngle;
 					<OutputDescription>Closes_window</OutputDescription>
 					<OutputType>void</OutputType>
 					<Service_Formula><![CDATA[
-wiringPiSetupGpio();
-pinMode(18, PWM_OUTPUT);
-pwmSetMode(PWM_MODE_MS);
-pwmSetClock(192);
-pwmSetRange(2000);
-pwmWrite(18, 150);
+#define SERVO_PIN        18
+#define SERVO_CLOSED_PWM 150
+#define PWM_CLOCK  192
+#define PWM_RANGE  2000
 
-FILE* f = fopen(\"/tmp/window_angle\", "w");
-if (f != NULL) {
+/* back to the centred pulse, which is the closed position */
+wiringPiSetupGpio();
+pinMode(SERVO_PIN, PWM_OUTPUT);
+pwmSetMode(PWM_MODE_MS);
+pwmSetClock(PWM_CLOCK);
+pwmSetRange(PWM_RANGE);
+pwmWrite(SERVO_PIN, SERVO_CLOSED_PWM);
+
+FILE* f = fopen(\"/tmp/window_angle\", \"w\");
+if (f != nullptr) {
     fprintf(f, \"%d\", 0);
     fclose(f);
 }
@@ -649,16 +729,19 @@ if (f != NULL) {
 					<OutputDescription>Returns_window_angle</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
-FILE* f = fopen(\"/tmp/window_angle\", \"r\");
-if (f == NULL) return 0;
+#define WINDOW_MAX_ANGLE 50
 
+/* last commanded angle, 0 (closed) if never set */
 int value = 0;
-if (fscanf(f, \"%d\", &value) != 1) value = 0;
-fclose(f);
-
+FILE* f = fopen(\"/tmp/window_angle\", \"r\");
+if (f != nullptr) {
+    if (fscanf(f, \"%d\", &value) != 1) value = 0;
+    fclose(f);
+}
 if (value < 0) value = 0;
-if (value > 50) value = 50;
-return value;
+if (value > WINDOW_MAX_ANGLE) value = WINDOW_MAX_ANGLE;
+
+Returns_window_angle = value;
 ]]></Service_Formula>
 					<Service_NumberInputs>0</Service_NumberInputs>
 					<Service_InputTypes></Service_InputTypes>

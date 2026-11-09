@@ -32,13 +32,21 @@ class ServiceRead_Fan_Status : public Service
 		// codegen will be more advanced/fine-grained, eventually
 		// for now, the whole function body is specified in the DDL `<Source>'
 		
-		FILE* f = fopen("/tmp/fan_speed", "r");
+		/* 1 = fan on (last commanded speed above 0), 0 = off */
 		
 		int value = 0;
 		
-		if (fscanf(f, "%d", &value) != 1) value = 0;
+		FILE* f = fopen("/tmp/fan_speed", "r");
 		
-		fclose(f);
+		if (f != nullptr) {
+		
+		    if (fscanf(f, "%d", &value) != 1) value = 0;
+		
+		    fclose(f);
+		
+		}
+		
+		Returns_fan_status = (value > 0) ? 1 : 0;
 		
 		
 		// cast the static storage to a generic return type

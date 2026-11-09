@@ -54,6 +54,10 @@ Parsing Information of Service #3 under entity #2
 Generating service bundle for Read_Fan_Speed under entity#2
 make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
 > generating bundle source code...
+> generating resources...
+> creating Read_Fan_Speed/libRead_Fan_Speed.so...
+built bundle Read_Fan_Speed
+make: Leaving directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
 Done Parsing and generating Service #3
 Parsing Information of Service #4 under entity #2
 Generating service bundle for Read_Fan_Status under entity#2
@@ -68,17 +72,28 @@ Parsing Information of Service #1 under entity #3
 Generating service bundle for Set_Window under entity#3
 make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
 > generating bundle source code...
+> generating resources...
+> creating Set_Window/libSet_Window.so...
+built bundle Set_Window
 make: Leaving directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
 Done Parsing and generating Service #1
 Parsing Information of Service #2 under entity #3
 Generating service bundle for Window_Close under entity#3
 make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
 > generating bundle source code...
+> generating resources...
+> creating Window_Close/libWindow_Close.so...
+built bundle Window_Close
+make: Leaving directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
 Done Parsing and generating Service #2
 Parsing Information of Service #3 under entity #3
 Generating service bundle for Read_Window_Position under entity#3
 make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
 > generating bundle source code...
+> generating resources...
+> creating Read_Window_Position/libRead_Window_Position.so...
+built bundle Read_Window_Position
+make: Leaving directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
 Done Parsing and generating Service #3
 
 Building the different tweets of your Atlas thing from the uploaded IoT-DDL ......
@@ -180,6 +195,13 @@ Your Atlas thing started to announce the tweets to the smart space through IP So
 
 
 Announcing tweet:  { "Tweet Type" : "Identity_Thing","Thing ID" : "AT_BoarAirSensor","Space ID" : "BoarSmartSpace","Name" : "Smart Air Quality Sensor","Model" : "","Vendor" : "","Owner" : "BoarGroup","Description" : "Air quality control system","OS" : "Raspbian" }
+
+
+
+Your Atlas thing is now ready to accept calls for the offered services .... 
+
+
+Announcing tweet:  { "Tweet Type" : "Identity_Language","Thing ID" : "AT_BoarAirSensor","Space ID" : "BoarSmartSpace","Network Name" : "GL-SFT1200","Communication Language" : "MQTT","IP" : "0.0.0.0","Port" : "6668" }
 
 
 

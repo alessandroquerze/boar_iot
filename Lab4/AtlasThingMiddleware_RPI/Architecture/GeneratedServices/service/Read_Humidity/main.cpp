@@ -34,53 +34,95 @@ class ServiceRead_Humidity : public Service
 		// codegen will be more advanced/fine-grained, eventually
 		// for now, the whole function body is specified in the DDL `<Source>'
 		
+		#define DHT_PIN      17
+		
+		#define DHT_ATTEMPTS 3
+		
+		#define DHT_RETRY_MS 1100
+		
+		/* DHT11 read, inlined: Atlas has no shared helpers between services */
+		
+		unsigned char data[5];
+		
+		int ok = 0;
+		
+		int levels[4] = { HIGH, LOW, HIGH, LOW };
+		
+		unsigned int limits[4] = { 100, 100, 120, 120 };
+		
 		wiringPiSetupGpio();
 		
-		int dhtPin = 17;
+		for (int attempt = 0; attempt < DHT_ATTEMPTS && !ok; attempt++) {
 		
-		pinMode(dhtPin, OUTPUT);
+		    if (attempt > 0) delay(DHT_RETRY_MS);
 		
-		digitalWrite(dhtPin, LOW);
+		    for (int k = 0; k < 5; k++) data[k] = 0;
 		
-		delay(20);
+		    /* wake-up pulse: hold the line LOW for 20 ms, then release it */
 		
-		pinMode(dhtPin, INPUT);
+		    pinMode(DHT_PIN, OUTPUT);
 		
-		pullUpDnControl(dhtPin, PUD_UP);
+		    digitalWrite(DHT_PIN, LOW);
 		
-		unsigned int t_start = micros();
+		    delay(20);
 		
-		while (digitalRead(dhtPin) == LOW) {
+		    pinMode(DHT_PIN, INPUT);
 		
-		}
+		    pullUpDnControl(DHT_PIN, PUD_UP);
 		
-		t_start = micros();
+		    /* handshake: the sensor answers LOW 80 us then HIGH 80 us */
 		
-		while (digitalRead(dhtPin) == HIGH) {
+		    int good = 1;
 		
-		}
+		    for (int s = 0; s < 4 && good; s++) {
 		
-		unsigned char dht_data[5] = {0, 0, 0, 0, 0};
+		        unsigned int t0 = micros();
 		
-		for (int i = 0; i < 40; i++) {
+		        while (good && digitalRead(DHT_PIN) != levels[s]) {
 		
-		    t_start = micros();
+		            if (micros() - t0 > limits[s]) good = 0;
 		
-		    while (digitalRead(dhtPin) == LOW) {
-		
-		    }
-		
-		    unsigned int pulse_start = micros();
-		
-		    while (digitalRead(dhtPin) == HIGH) {
+		        }
 		
 		    }
 		
-		    dht_data[i / 8] <<= 1;
+		    /* 40 data bits: a HIGH pulse longer than 50 us is a 1 */
 		
-		    if ((micros() - pulse_start) > 50) dht_data[i / 8] |= 1;
+		    for (int i = 0; i < 40 && good; i++) {
+		
+		        unsigned int t0 = micros();
+		
+		        while (good && digitalRead(DHT_PIN) != HIGH) {
+		
+		            if (micros() - t0 > 100) good = 0;
+		
+		        }
+		
+		        unsigned int start = micros();
+		
+		        while (good && digitalRead(DHT_PIN) != LOW) {
+		
+		            if (micros() - start > 120) good = 0;
+		
+		        }
+		
+		        unsigned int duration = micros() - start;
+		
+		        data[i / 8] = data[i / 8] << 1;
+		
+		        if (duration > 50) data[i / 8] = data[i / 8] | 1;
+		
+		    }
+		
+		    /* the fifth byte is the checksum of the first four */
+		
+		    if (good && ((data[0] + data[1] + data[2] + data[3]) & 0xFF) == data[4]) ok = 1;
 		
 		}
+		
+		/* data[0] is the integer part of the relative humidity in percent; -1 = read failed */
+		
+		Returns_humidity = ok ? data[0] : -1;
 		
 		
 		// cast the static storage to a generic return type

@@ -1,9 +1,14 @@
 autogen definitions service;
 output = { name = Returns_fan_speed; type = "int"; };
 name = Read_Fan_Speed;
-source = "FILE* f = fopen(\"/tmp/fan_speed\", \"r\");";
+source = "#define FAN_MAX_PCT 75";
+source = "/* last commanded speed, 0 if the fan was never started */";
 source = "int value = 0;";
-source = "if (fscanf(f, \"%d\", &value) != 1) value = 0;";
-source = "fclose(f);";
+source = "FILE* f = fopen(\"/tmp/fan_speed\", \"r\");";
+source = "if (f != nullptr) {";
+source = "    if (fscanf(f, \"%d\", &value) != 1) value = 0;";
+source = "    fclose(f);";
+source = "}";
 source = "if (value < 0) value = 0;";
-source = "if (value > 75) value = 75;";
+source = "if (value > FAN_MAX_PCT) value = FAN_MAX_PCT;";
+source = "Returns_fan_speed = value;";

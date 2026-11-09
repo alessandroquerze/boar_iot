@@ -32,17 +32,27 @@ class ServiceRead_Window_Position : public Service
 		// codegen will be more advanced/fine-grained, eventually
 		// for now, the whole function body is specified in the DDL `<Source>'
 		
-		FILE* f = fopen("/tmp/window_angle", "r");
+		#define WINDOW_MAX_ANGLE 50
+		
+		/* last commanded angle, 0 (closed) if never set */
 		
 		int value = 0;
 		
-		if (fscanf(f, "%d", &value) != 1) value = 0;
+		FILE* f = fopen("/tmp/window_angle", "r");
 		
-		fclose(f);
+		if (f != nullptr) {
+		
+		    if (fscanf(f, "%d", &value) != 1) value = 0;
+		
+		    fclose(f);
+		
+		}
 		
 		if (value < 0) value = 0;
 		
-		if (value > 50) value = 50;
+		if (value > WINDOW_MAX_ANGLE) value = WINDOW_MAX_ANGLE;
+		
+		Returns_window_angle = value;
 		
 		
 		// cast the static storage to a generic return type

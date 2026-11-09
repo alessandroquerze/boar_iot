@@ -32,17 +32,27 @@ class ServiceRead_Fan_Speed : public Service
 		// codegen will be more advanced/fine-grained, eventually
 		// for now, the whole function body is specified in the DDL `<Source>'
 		
-		FILE* f = fopen("/tmp/fan_speed", "r");
+		#define FAN_MAX_PCT 75
+		
+		/* last commanded speed, 0 if the fan was never started */
 		
 		int value = 0;
 		
-		if (fscanf(f, "%d", &value) != 1) value = 0;
+		FILE* f = fopen("/tmp/fan_speed", "r");
 		
-		fclose(f);
+		if (f != nullptr) {
+		
+		    if (fscanf(f, "%d", &value) != 1) value = 0;
+		
+		    fclose(f);
+		
+		}
 		
 		if (value < 0) value = 0;
 		
-		if (value > 75) value = 75;
+		if (value > FAN_MAX_PCT) value = FAN_MAX_PCT;
+		
+		Returns_fan_speed = value;
 		
 		
 		// cast the static storage to a generic return type

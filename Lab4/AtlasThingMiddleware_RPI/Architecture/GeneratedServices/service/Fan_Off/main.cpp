@@ -32,21 +32,29 @@ class ServiceFan_Off : public Service
 		// codegen will be more advanced/fine-grained, eventually
 		// for now, the whole function body is specified in the DDL `<Source>'
 		
+		#define FAN_PIN 13
+		
+		#define PWM_CLOCK  192
+		
+		#define PWM_RANGE  2000
+		
+		/* duty cycle 0 stops the motor; keep the shared clock and range for the servo */
+		
 		wiringPiSetupGpio();
 		
-		pinMode(13, PWM_OUTPUT);
+		pinMode(FAN_PIN, PWM_OUTPUT);
 		
 		pwmSetMode(PWM_MODE_MS);
 		
-		pwmSetClock(192);
+		pwmSetClock(PWM_CLOCK);
 		
-		pwmSetRange(2000);
+		pwmSetRange(PWM_RANGE);
 		
-		pwmWrite(13, 0);
+		pwmWrite(FAN_PIN, 0);
 		
 		FILE* f = fopen("/tmp/fan_speed", "w");
 		
-		if (f != NULL) {
+		if (f != nullptr) {
 		
 		    fprintf(f, "%d", 0);
 		

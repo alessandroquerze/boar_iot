@@ -1,9 +1,14 @@
 autogen definitions service;
 output = { name = Returns_window_angle; type = "int"; };
 name = Read_Window_Position;
-source = "FILE* f = fopen(\"/tmp/window_angle\", \"r\");";
+source = "#define WINDOW_MAX_ANGLE 50";
+source = "/* last commanded angle, 0 (closed) if never set */";
 source = "int value = 0;";
-source = "if (fscanf(f, \"%d\", &value) != 1) value = 0;";
-source = "fclose(f);";
+source = "FILE* f = fopen(\"/tmp/window_angle\", \"r\");";
+source = "if (f != nullptr) {";
+source = "    if (fscanf(f, \"%d\", &value) != 1) value = 0;";
+source = "    fclose(f);";
+source = "}";
 source = "if (value < 0) value = 0;";
-source = "if (value > 50) value = 50;";
+source = "if (value > WINDOW_MAX_ANGLE) value = WINDOW_MAX_ANGLE;";
+source = "Returns_window_angle = value;";

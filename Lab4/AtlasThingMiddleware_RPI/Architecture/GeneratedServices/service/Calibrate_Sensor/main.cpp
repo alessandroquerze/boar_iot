@@ -34,79 +34,95 @@ class ServiceCalibrate_Sensor : public Service
 		// codegen will be more advanced/fine-grained, eventually
 		// for now, the whole function body is specified in the DDL `<Source>'
 		
+		#define DHT_PIN      17
+		
+		#define DHT_ATTEMPTS 3
+		
+		#define DHT_RETRY_MS 1100
+		
+		/* DHT11 read, inlined: Atlas has no shared helpers between services */
+		
+		unsigned char data[5];
+		
+		int ok = 0;
+		
+		int levels[4] = { HIGH, LOW, HIGH, LOW };
+		
+		unsigned int limits[4] = { 100, 100, 120, 120 };
+		
 		wiringPiSetupGpio();
 		
-		int dhtPin = 17;
+		for (int attempt = 0; attempt < DHT_ATTEMPTS && !ok; attempt++) {
 		
-		for (int attempt = 0; attempt < 3; attempt++) {
+		    if (attempt > 0) delay(DHT_RETRY_MS);
 		
-		    if (attempt > 0) delay(1100);
+		    for (int k = 0; k < 5; k++) data[k] = 0;
 		
-		    pinMode(dhtPin, OUTPUT);
+		    /* wake-up pulse: hold the line LOW for 20 ms, then release it */
 		
-		    digitalWrite(dhtPin, LOW);
+		    pinMode(DHT_PIN, OUTPUT);
+		
+		    digitalWrite(DHT_PIN, LOW);
 		
 		    delay(20);
 		
-		    pinMode(dhtPin, INPUT);
+		    pinMode(DHT_PIN, INPUT);
 		
-		    pullUpDnControl(dhtPin, PUD_UP);
+		    pullUpDnControl(DHT_PIN, PUD_UP);
 		
-		    
+		    /* handshake: the sensor answers LOW 80 us then HIGH 80 us */
 		
-		    unsigned int t_start = micros();
+		    int good = 1;
 		
-		    while (digitalRead(dhtPin) == LOW) {
+		    for (int s = 0; s < 4 && good; s++) {
 		
-		        if ((micros() - t_start) > 100) break;
+		        unsigned int t0 = micros();
 		
-		    }
+		        while (good && digitalRead(DHT_PIN) != levels[s]) {
 		
-		    t_start = micros();
-		
-		    while (digitalRead(dhtPin) == HIGH) {
-		
-		        if ((micros() - t_start) > 100) break;
-		
-		    }
-		
-		    
-		
-		    unsigned char dht_data[5] = {0, 0, 0, 0, 0};
-		
-		    bool valid = true;
-		
-		    for (int i = 0; i < 40; i++) {
-		
-		        t_start = micros();
-		
-		        while (digitalRead(dhtPin) == LOW) {
-		
-		            if ((micros() - t_start) > 100) { valid = false; break; }
+		            if (micros() - t0 > limits[s]) good = 0;
 		
 		        }
 		
-		        unsigned int pulse_start = micros();
+		    }
 		
-		        while (digitalRead(dhtPin) == HIGH) {
+		    /* 40 data bits: a HIGH pulse longer than 50 us is a 1 */
 		
-		            if ((micros() - pulse_start) > 120) { valid = false; break; }
+		    for (int i = 0; i < 40 && good; i++) {
+		
+		        unsigned int t0 = micros();
+		
+		        while (good && digitalRead(DHT_PIN) != HIGH) {
+		
+		            if (micros() - t0 > 100) good = 0;
 		
 		        }
 		
-		        if (!valid) break;
+		        unsigned int start = micros();
 		
-		        dht_data[i / 8] <<= 1;
+		        while (good && digitalRead(DHT_PIN) != LOW) {
 		
-		        if ((micros() - pulse_start) > 50) dht_data[i / 8] |= 1;
+		            if (micros() - start > 120) good = 0;
+		
+		        }
+		
+		        unsigned int duration = micros() - start;
+		
+		        data[i / 8] = data[i / 8] << 1;
+		
+		        if (duration > 50) data[i / 8] = data[i / 8] | 1;
 		
 		    }
 		
-		    if (valid && ((dht_data[0] + dht_data[1] + dht_data[2] + dht_data[3]) & 0xFF) == dht_data[4]) {
+		    /* the fifth byte is the checksum of the first four */
 		
-		    }
+		    if (good && ((data[0] + data[1] + data[2] + data[3]) & 0xFF) == data[4]) ok = 1;
 		
 		}
+		
+		/* 1 = sensor answered within 3 attempts, -1 = it did not */
+		
+		Calibrates_the_sensor = ok ? 1 : -1;
 		
 		
 		// cast the static storage to a generic return type

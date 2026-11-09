@@ -1,0 +1,9 @@
+
+{
+	"bundle.symbolic_name": "Set_Window",
+	"bundle.activator":     true,
+	"bundle.name"         : "Service Set_Window",
+	"bundle.description"  : "This bundle is service type"
+}
+
+
