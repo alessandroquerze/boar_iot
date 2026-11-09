@@ -73,15 +73,6 @@ Tracks the assignment handout. Updated as each stage lands.
 | 2.8 | Demo IoT Application unicasting API calls to port 6668 | **todo** |
 | 2.9 | Demo app is well commented and explains each demonstration | **todo** |
 
-### Submission
-
-| # | Requirement | Status |
-|---|---|---|
-| 3.1 | `Lab4_<FullNames>.zip` with `PartOne/` + `PartTwo/` | **todo** |
-| 3.2 | Comments throughout (they are graded) | ongoing |
-| 3.3 | One member emails Prof. Helal **and** lijunjie@ufl.edu before the deadline, listing every full name | **todo** |
-| 3.4 | Everyone available for the live TA demo | **todo** |
-
 ---
 
 ## Architecture
