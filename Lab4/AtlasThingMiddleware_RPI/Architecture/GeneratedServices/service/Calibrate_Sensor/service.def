@@ -1,6 +1,6 @@
 autogen definitions service;
 library = "#include <wiringPi.h>";
-output = { name = Calibrates the sensor; type = "int"; };
+output = { name = Calibrates_the_sensor; type = "int"; };
 name = Calibrate_Sensor;
 source = "#define DHT_ATTEMPTS 3";
 source = "#define DHT_RETRY_MS 1100";

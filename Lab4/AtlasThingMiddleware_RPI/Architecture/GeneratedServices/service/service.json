@@ -1,0 +1,9 @@
+
+{
+	"bundle.symbolic_name": "Read_Humidity",
+	"bundle.activator":     true,
+	"bundle.name"         : "Service Read_Humidity",
+	"bundle.description"  : "This bundle is service type"
+}
+
+

@@ -1,6 +1,6 @@
 autogen definitions service;
 library = "#include <wiringPi.h>";
-output = { name = Returns the temperature in Fahrenheit or Celsius; type = "int"; };
+output = { name = Returns_temperature; type = "int"; };
 name = Read_Temp;
 source = "#define DHT_PIN    17";
 source = "unsigned char data[5] = { 0 };";
@@ -24,4 +24,4 @@ source = "if (checksum != data[4])";
 source = "*humidity = data[0];";
 source = "*temperature = data[2];";
 source = "if (F_or_C == 1)";
-inputs = { name = "F_or_C"; type = "int"; };
+inputs = { name = F_or_C; type = "int"; };

@@ -1,6 +1,6 @@
 autogen definitions service;
 library = "#include <wiringPi.h>";
-output = { name = Turns the fan on at a certain speed and returns the applied speed; type = "int"; };
+output = { name = Turns_on_fan; type = "int"; };
 name = Fan_On;
 source = "#define FAN_PIN    13";
 source = "#define FAN_MAX_PCT 75";
@@ -18,4 +18,4 @@ source = "pwmWrite(FAN_PIN, speed * PWM_RANGE / 100);";
 source = "FILE* f = fopen(FAN_STATE_FILE, "w");";
 source = "fprintf(f, "%d", speed);";
 source = "fclose(f);";
-inputs = { name = "speed"; type = "int"; };
+inputs = { name = speed; type = "int"; };

@@ -1,6 +1,6 @@
 autogen definitions service;
 library = "#include <wiringPi.h>";
-output = { name = Opens the window and returns the applied angle; type = "int"; };
+output = { name = Opens_window; type = "int"; };
 name = Set_Window;
 source = "#define SERVO_PIN  18";
 source = "#define SERVO_CLOSED_PWM 150";
@@ -20,4 +20,4 @@ source = "pwmWrite(SERVO_PIN, SERVO_CLOSED_PWM + (angle * SERVO_TICKS_180) / 180
 source = "FILE* f = fopen(WINDOW_STATE_FILE, "w");";
 source = "fprintf(f, "%d", angle);";
 source = "fclose(f);";
-inputs = { name = "angle"; type = "int"; };
+inputs = { name = angle; type = "int"; };

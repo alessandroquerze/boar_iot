@@ -1,6 +1,6 @@
 autogen definitions service;
 library = "#include <wiringPi.h>";
-output = { name = Returns the percentage of humidity; type = "int"; };
+output = { name = Returns_humidity; type = "int"; };
 name = Read_Humidity;
 source = "#define DHT_PIN    17";
 source = "unsigned char data[5] = { 0 };";

@@ -1,5 +1,5 @@
 autogen definitions service;
-output = { name = Returns the angle of the window; type = "int"; };
+output = { name = Returns_window_angle; type = "int"; };
 name = Read_Window_Position;
 source = "#define WINDOW_MAX_ANGLE 50";
 source = "static const char* WINDOW_STATE_FILE = "/tmp/window_angle";";

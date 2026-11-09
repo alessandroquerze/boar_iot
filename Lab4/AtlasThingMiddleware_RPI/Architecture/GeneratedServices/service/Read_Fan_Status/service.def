@@ -1,5 +1,5 @@
 autogen definitions service;
-output = { name = Returns the status of the fan; type = "int"; };
+output = { name = Returns_fan_status; type = "int"; };
 name = Read_Fan_Status;
 source = "static const char* FAN_STATE_FILE = "/tmp/fan_speed";";
 source = "FILE* f = fopen(FAN_STATE_FILE, "r");";
