@@ -35,7 +35,6 @@ let nextId = 1;
 const pending = new Map();
 
 // --- UI helpers ---
-
 function setBrokerStatus(kind, text) {
   connStatus.textContent = `Broker: ${text}`;
   connStatus.className = `status status-${kind}`;
@@ -51,8 +50,6 @@ function showMessage(text, kind = "") {
   message.className = `message ${kind}`;
 }
 
-// depth indents nested statements so the structure of an IF inside an IF stays
-// readable; .log-line keeps the leading spaces via white-space: pre-wrap.
 function log(text, kind = "", depth = 0) {
   const line = document.createElement("div");
   line.className = `log-line log-${kind}`;
@@ -66,6 +63,7 @@ function describe(call) {
 }
 
 // --- Service catalogue ---
+// These functions are the ones that generates the table with all the services exposes by the Iot things
 
 function addCell(row, text, className) {
   const cell = document.createElement("td");
@@ -102,8 +100,6 @@ function describeInputs(spec) {
     .join(", ");
 }
 
-// The catalogue is read-only: every invocation goes through the IDE, where a
-// bare RUN covers the single-call case.
 function renderCatalogue(services) {
   catalogueBody.replaceChildren();
 
@@ -130,14 +126,14 @@ function renderCatalogue(services) {
 }
 
 // --- Service calls ---
-
+//Send an MQTT request and wait for a response
 function invoke(rpi, name, args, depth = 0) {
   return new Promise((resolve, reject) => {
     if (!client || !client.connected) {
       reject(new Error("not connected to the broker"));
       return;
     }
-
+    //add of a timeout in case the device doesn't reply
     const id = nextId++;
     const timer = setTimeout(() => {
       pending.delete(id);
@@ -162,7 +158,7 @@ function handleReply(data) {
     log(`reply ${data.service} -> ${data.status} (another client)`, "other");
     return;
   }
-
+  //switch of the timer connect to the timeout of the request
   clearTimeout(entry.timer);
   pending.delete(data.id);
 
@@ -175,11 +171,14 @@ function handleReply(data) {
 }
 
 // --- Parser ---
-
+//used to analyse and divide the argument of a line
 const CALL_RE = /^(?:([A-Za-z0-9_-]+)\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)$/;
+//used to search keyword relative to operation to do in the lines
 const KEYWORD_RE = /^(RUN|THEN|IF|DO|ELSE|END)\b\s*(.*)$/i;
+//used to understend the condition present in the if statement
 const TEST_RE = /^(.*?)\s*(>=|<=|==|!=|>|<)\s*(-?\d+)$/;
 
+//check if the line in input is a valid statement and throws an error in case it's invalid
 function parseCall(text) {
   const match = CALL_RE.exec(text.trim());
   if (!match) throw new Error(`not a service call: "${text.trim()}"`);
@@ -210,10 +209,7 @@ function parseCall(text) {
   return { rpi: rpi || DEFAULT_RPI, name, args };
 }
 
-// A predicate is "call op int". Several of them combine with AND and OR, with
-// AND binding tighter. There are no grouping parentheses: they could not be
-// told apart from a call's own parentheses, as in Read_Temp(C). Nest an IF to
-// group instead.
+//Analyse a single predicate compose by a compare operator and a number, the result is the call to execute
 function parsePredicate(text) {
   const match = TEST_RE.exec(text.trim());
   if (!match) throw new Error(`expected "<call> <op> <int>", got: "${text.trim()}"`);
@@ -266,11 +262,8 @@ function peekKeyword(cursor) {
   return match ? match[1].toUpperCase() : null;
 }
 
-// Consumes a keyword whose line continues with a body statement. When something
-// follows on the same line (DO RPi1.Fan_On(75)) the remainder is left in place
-// as the current line, so an inline statement and one on the following line
-// parse identically.
 function takeKeyword(cursor) {
+  //check if the current line has a keyword for the lenguage, one of the word present in KEYWORD_RE
   const match = KEYWORD_RE.exec(cursor.lines[cursor.i]);
   const rest = match[2].trim();
 
@@ -280,9 +273,6 @@ function takeKeyword(cursor) {
   return rest;
 }
 
-// Consumes the whole line and returns what followed its keyword. Used where the
-// remainder belongs to the keyword itself rather than being a statement, as the
-// condition does in "IF <condition>".
 function takeKeywordLine(cursor) {
   const match = KEYWORD_RE.exec(cursor.lines[cursor.i]);
   cursor.i++;
@@ -298,6 +288,7 @@ function takeCall(cursor, context) {
   return call;
 }
 
+//Analyse a RUN operation and the possible following THEN operation in order to call the service in the right order
 function parseOrder(cursor) {
   takeKeyword(cursor);                       // RUN
   const calls = [takeCall(cursor, "RUN")];
@@ -312,15 +303,18 @@ function parseOrder(cursor) {
 }
 
 function parseConditional(cursor) {
+  //check the sysntax of an if construct
   const condition = parseCondition(takeKeywordLine(cursor));
 
   if (peekKeyword(cursor) !== "DO") {
     throw new Error(`expected DO after IF, got: "${peek(cursor) ?? "end of program"}"`);
   }
   takeKeyword(cursor);
+  //the parsing stop only it find the keywords ELSE or END
   const consequent = parseBlock(cursor, ["ELSE", "END"]);
 
   let alternative = [];
+  //it is trigger if there is an else statement
   if (peekKeyword(cursor) === "ELSE") {
     takeKeyword(cursor);
     alternative = parseBlock(cursor, ["END"]);
@@ -337,7 +331,7 @@ function parseConditional(cursor) {
 
 function parseStatement(cursor) {
   const keyword = peekKeyword(cursor);
-
+  //select the right function to anlyse the current line
   if (keyword === "RUN") return parseOrder(cursor);
   if (keyword === "IF") return parseConditional(cursor);
 
@@ -505,6 +499,7 @@ async function runBlock(statements, depth) {
   }
 }
 
+//this is the function called when the relative button is pressed
 async function runProgram() {
   let statements;
   try {
