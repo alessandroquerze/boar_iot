@@ -1,0 +1,185 @@
+Starting Atlas thing architecture ................
+
+Parsing the uploaded IoT-DDL ......
+
+Your Atlas thing ID is AT_BoarAirSensor and your Smart Space ID BoarSmartSpace
+
+Generating bundles of your Atlas thing's services ......
+Parsing Information of Service #1 under entity #1
+Generating service bundle for Calibrate_Sensor under entity#1
+make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+> generating bundle source code...
+> generating resources...
+> creating Calibrate_Sensor/libCalibrate_Sensor.so...
+built bundle Calibrate_Sensor
+make: Leaving directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+Done Parsing and generating Service #1
+Parsing Information of Service #2 under entity #1
+Generating service bundle for Read_Temp under entity#1
+make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+> generating bundle source code...
+> generating resources...
+> creating Read_Temp/libRead_Temp.so...
+built bundle Read_Temp
+make: Leaving directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+Done Parsing and generating Service #2
+Parsing Information of Service #3 under entity #1
+Generating service bundle for Read_Humidity under entity#1
+make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+> generating bundle source code...
+> generating resources...
+> creating Read_Humidity/libRead_Humidity.so...
+built bundle Read_Humidity
+make: Leaving directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+Done Parsing and generating Service #3
+Parsing Information of Service #1 under entity #2
+Generating service bundle for Fan_On under entity#2
+make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+> generating bundle source code...
+> generating resources...
+> creating Fan_On/libFan_On.so...
+built bundle Fan_On
+make: Leaving directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+Done Parsing and generating Service #1
+Parsing Information of Service #2 under entity #2
+Generating service bundle for Fan_Off under entity#2
+make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+> generating bundle source code...
+> generating resources...
+> creating Fan_Off/libFan_Off.so...
+built bundle Fan_Off
+make: Leaving directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+Done Parsing and generating Service #2
+Parsing Information of Service #3 under entity #2
+Generating service bundle for Read_Fan_Speed under entity#2
+make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+> generating bundle source code...
+Done Parsing and generating Service #3
+Parsing Information of Service #4 under entity #2
+Generating service bundle for Read_Fan_Status under entity#2
+make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+> generating bundle source code...
+> generating resources...
+> creating Read_Fan_Status/libRead_Fan_Status.so...
+built bundle Read_Fan_Status
+make: Leaving directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+Done Parsing and generating Service #4
+Parsing Information of Service #1 under entity #3
+Generating service bundle for Set_Window under entity#3
+make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+> generating bundle source code...
+make: Leaving directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+Done Parsing and generating Service #1
+Parsing Information of Service #2 under entity #3
+Generating service bundle for Window_Close under entity#3
+make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+> generating bundle source code...
+Done Parsing and generating Service #2
+Parsing Information of Service #3 under entity #3
+Generating service bundle for Read_Window_Position under entity#3
+make: Entering directory '/home/boar/boar_iot/Lab4/AtlasThingMiddleware_RPI/Architecture/GeneratedServices/service'
+> generating bundle source code...
+Done Parsing and generating Service #3
+
+Building the different tweets of your Atlas thing from the uploaded IoT-DDL ......
+
+
+
+
+ ... the generated Thing Identity-related Tweets:
+ { "Tweet Type" : "Identity_Thing","Thing ID" : "AT_BoarAirSensor","Space ID" : "BoarSmartSpace","Name" : "Smart Air Quality Sensor","Model" : "","Vendor" : "","Owner" : "BoarGroup","Description" : "Air quality control system","OS" : "Raspbian" }
+
+
+
+
+
+
+
+ ... the generated Thing Languages-related Tweets:
+ { "Tweet Type" : "Identity_Language","Thing ID" : "AT_BoarAirSensor","Space ID" : "BoarSmartSpace","Network Name" : "GL-SFT1200","Communication Language" : "MQTT","IP" : "0.0.0.0","Port" : "6668" }
+
+
+
+
+
+
+
+ ... the generated Entity Identity-related Tweets:
+ { "Tweet Type" : "Identity_Entity","Thing ID" : "AT_BoarAirSensor","Space ID" : "BoarSmartSpace","Name" : "Temperature and Humidity Sensor DHT11","ID" : "ClimateSensor","Type" : "","Owner" : "BoarGroup","Vendor" : "","Description" : "" }
+
+
+
+ { "Tweet Type" : "Identity_Entity","Thing ID" : "AT_BoarAirSensor","Space ID" : "BoarSmartSpace","Name" : "Fan Motor 2N2222","ID" : "Fan","Type" : "","Owner" : "BoarGroup","Vendor" : "","Description" : "" }
+
+
+
+ { "Tweet Type" : "Identity_Entity","Thing ID" : "AT_BoarAirSensor","Space ID" : "BoarSmartSpace","Name" : "Servo Motor","ID" : "Window","Type" : "","Owner" : "BoarGroup","Vendor" : "","Description" : "" }
+
+
+
+
+
+
+
+ ... the generated Services-related Tweets:
+ { "Tweet Type" : "Service","Name" : "Calibrate_Sensor","Thing ID" : "AT_BoarAirSensor","Entity ID" : "ClimateSensor","Space ID" : "BoarSmartSpace","Vendor" : "","API" : "Calibrate_Sensor:[NULL]:(Calibrates_the_sensor,int, NULL)","Type" : "Report","AppCategory" : "","Description" : "","Keywords" : "temperature,humidity,calibration,sensor" }
+
+
+
+ { "Tweet Type" : "Service","Name" : "Read_Temp","Thing ID" : "AT_BoarAirSensor","Entity ID" : "ClimateSensor","Space ID" : "BoarSmartSpace","Vendor" : "","API" : "Read_Temp:[F_or_C,int, NULL]:(Returns_temperature,int, NULL)","Type" : "Report","AppCategory" : "","Description" : "","Keywords" : "temperature,sensor,read" }
+
+
+
+ { "Tweet Type" : "Service","Name" : "Read_Humidity","Thing ID" : "AT_BoarAirSensor","Entity ID" : "ClimateSensor","Space ID" : "BoarSmartSpace","Vendor" : "","API" : "Read_Humidity:[NULL]:(Returns_humidity,int, NULL)","Type" : "Report","AppCategory" : "","Description" : "","Keywords" : "humidity,sensor,read" }
+
+
+
+ { "Tweet Type" : "Service","Name" : "Fan_On","Thing ID" : "AT_BoarAirSensor","Entity ID" : "Fan","Space ID" : "BoarSmartSpace","Vendor" : "","API" : "Fan_On:[speed,int, NULL]:(Turns_on_fan,int, NULL)","Type" : "Action","AppCategory" : "","Description" : "","Keywords" : "fan,on,motor" }
+
+
+
+ { "Tweet Type" : "Service","Name" : "Fan_Off","Thing ID" : "AT_BoarAirSensor","Entity ID" : "Fan","Space ID" : "BoarSmartSpace","Vendor" : "","API" : "Fan_Off:[NULL]:(NULL)","Type" : "Action","AppCategory" : "","Description" : "","Keywords" : "fan,off,motor" }
+
+
+
+ { "Tweet Type" : "Service","Name" : "Read_Fan_Speed","Thing ID" : "AT_BoarAirSensor","Entity ID" : "Fan","Space ID" : "BoarSmartSpace","Vendor" : "","API" : "Read_Fan_Speed:[NULL]:(Returns_fan_speed,int, NULL)","Type" : "Report","AppCategory" : "","Description" : "","Keywords" : "read,fan,speed,motor" }
+
+
+
+ { "Tweet Type" : "Service","Name" : "Read_Fan_Status","Thing ID" : "AT_BoarAirSensor","Entity ID" : "Fan","Space ID" : "BoarSmartSpace","Vendor" : "","API" : "Read_Fan_Status:[NULL]:(Returns_fan_status,int, NULL)","Type" : "Report","AppCategory" : "","Description" : "","Keywords" : "status,read,fan,motor" }
+
+
+
+ { "Tweet Type" : "Service","Name" : "Set_Window","Thing ID" : "AT_BoarAirSensor","Entity ID" : "Window","Space ID" : "BoarSmartSpace","Vendor" : "","API" : "Set_Window:[angle,int, NULL]:(Opens_window,int, NULL)","Type" : "Action","AppCategory" : "","Description" : "","Keywords" : "window,motor,servo,set" }
+
+
+
+ { "Tweet Type" : "Service","Name" : "Window_Close","Thing ID" : "AT_BoarAirSensor","Entity ID" : "Window","Space ID" : "BoarSmartSpace","Vendor" : "","API" : "Window_Close:[NULL]:(NULL)","Type" : "Action","AppCategory" : "","Description" : "","Keywords" : "window,close,servo,motor" }
+
+
+
+ { "Tweet Type" : "Service","Name" : "Read_Window_Position","Thing ID" : "AT_BoarAirSensor","Entity ID" : "Window","Space ID" : "BoarSmartSpace","Vendor" : "","API" : "Read_Window_Position:[NULL]:(Returns_window_angle,int, NULL)","Type" : "Report","AppCategory" : "","Description" : "","Keywords" : "read,window,position,servo,motor" }
+
+
+
+
+
+
+
+ ... the generated Relationship-related Tweets:
+
+
+
+
+
+Initializing the interface and communication engine ................
+
+
+
+Your Atlas thing started to announce the tweets to the smart space through IP Socket multicasting ....
+
+
+Announcing tweet:  { "Tweet Type" : "Identity_Thing","Thing ID" : "AT_BoarAirSensor","Space ID" : "BoarSmartSpace","Name" : "Smart Air Quality Sensor","Model" : "","Vendor" : "","Owner" : "BoarGroup","Description" : "Air quality control system","OS" : "Raspbian" }
+
+
+

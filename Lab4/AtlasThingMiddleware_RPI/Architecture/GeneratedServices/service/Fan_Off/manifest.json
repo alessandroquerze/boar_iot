@@ -1,0 +1,9 @@
+
+{
+	"bundle.symbolic_name": "Fan_Off",
+	"bundle.activator":     true,
+	"bundle.name"         : "Service Fan_Off",
+	"bundle.description"  : "This bundle is service type"
+}
+
+

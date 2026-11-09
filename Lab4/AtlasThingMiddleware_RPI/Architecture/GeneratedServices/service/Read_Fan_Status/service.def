@@ -1,7 +1,7 @@
 autogen definitions service;
 output = { name = Returns_fan_status; type = "int"; };
 name = Read_Fan_Status;
-source = "FILE* f = fopen("/tmp/fan_speed", "r");";
+source = "FILE* f = fopen(\"/tmp/fan_speed\", \"r\");";
 source = "int value = 0;";
-source = "if (fscanf(f, "%d", &value) != 1) value = 0;";
+source = "if (fscanf(f, \"%d\", &value) != 1) value = 0;";
 source = "fclose(f);";

@@ -1,9 +1,9 @@
 autogen definitions service;
 output = { name = Returns_fan_speed; type = "int"; };
 name = Read_Fan_Speed;
-source = "FILE* f = fopen("/tmp/fan_speed", "r");";
+source = "FILE* f = fopen(\"/tmp/fan_speed\", \"r\");";
 source = "int value = 0;";
-source = "if (fscanf(f, "%d", &value) != 1) value = 0;";
+source = "if (fscanf(f, \"%d\", &value) != 1) value = 0;";
 source = "fclose(f);";
 source = "if (value < 0) value = 0;";
 source = "if (value > 75) value = 75;";

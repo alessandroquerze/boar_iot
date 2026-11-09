@@ -354,9 +354,9 @@ pwmSetClock(192);
 pwmSetRange(2000);
 pwmWrite(13, applySpeed * 2000 / 100);
 
-FILE* f = fopen("/tmp/fan_speed", "w");
+FILE* f = fopen(\"/tmp/fan_speed\", \"w\");
 if (f != NULL) {
-    fprintf(f, "%d", applySpeed);
+    fprintf(f, \"%d\", applySpeed);
     fclose(f);
 }
 
@@ -400,9 +400,9 @@ pwmSetClock(192);
 pwmSetRange(2000);
 pwmWrite(13, 0);
 
-FILE* f = fopen("/tmp/fan_speed", "w");
+FILE* f = fopen(\"/tmp/fan_speed\", \"w\");
 if (f != NULL) {
-    fprintf(f, "%d", 0);
+    fprintf(f, \"%d\", 0);
     fclose(f);
 }
 ]]></Service_Formula>
@@ -437,11 +437,11 @@ if (f != NULL) {
 					<OutputDescription>Returns_fan_speed</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
-FILE* f = fopen("/tmp/fan_speed", "r");
+FILE* f = fopen(\"/tmp/fan_speed\", \"r\");
 if (f == NULL) return 0;
 
 int value = 0;
-if (fscanf(f, "%d", &value) != 1) value = 0;
+if (fscanf(f, \"%d\", &value) != 1) value = 0;
 fclose(f);
 
 if (value < 0) value = 0;
@@ -479,11 +479,11 @@ return value;
 					<OutputDescription>Returns_fan_status</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
-FILE* f = fopen("/tmp/fan_speed", "r");
+FILE* f = fopen(\"/tmp/fan_speed\", \"r\");
 if (f == NULL) return 0;
 
 int value = 0;
-if (fscanf(f, "%d", &value) != 1) value = 0;
+if (fscanf(f, \"%d\", &value) != 1) value = 0;
 fclose(f);
 
 return (value <= 0) ? 0 : 1;
@@ -566,9 +566,9 @@ pwmSetClock(192);
 pwmSetRange(2000);
 pwmWrite(18, 150 + (applyAngle * 200) / 180);
 
-FILE* f = fopen("/tmp/window_angle", "w");
+FILE* f = fopen(\"/tmp/window_angle\", "w");
 if (f != NULL) {
-    fprintf(f, "%d", applyAngle);
+    fprintf(f, \"%d\", applyAngle);
     fclose(f);
 }
 
@@ -612,9 +612,9 @@ pwmSetClock(192);
 pwmSetRange(2000);
 pwmWrite(18, 150);
 
-FILE* f = fopen("/tmp/window_angle", "w");
+FILE* f = fopen(\"/tmp/window_angle\", "w");
 if (f != NULL) {
-    fprintf(f, "%d", 0);
+    fprintf(f, \"%d\", 0);
     fclose(f);
 }
 ]]></Service_Formula>
@@ -649,11 +649,11 @@ if (f != NULL) {
 					<OutputDescription>Returns_window_angle</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
-FILE* f = fopen("/tmp/window_angle", "r");
+FILE* f = fopen(\"/tmp/window_angle\", \"r\");
 if (f == NULL) return 0;
 
 int value = 0;
-if (fscanf(f, "%d", &value) != 1) value = 0;
+if (fscanf(f, \"%d\", &value) != 1) value = 0;
 fclose(f);
 
 if (value < 0) value = 0;

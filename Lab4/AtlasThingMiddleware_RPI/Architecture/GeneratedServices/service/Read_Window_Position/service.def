@@ -1,9 +1,9 @@
 autogen definitions service;
 output = { name = Returns_window_angle; type = "int"; };
 name = Read_Window_Position;
-source = "FILE* f = fopen("/tmp/window_angle", "r");";
+source = "FILE* f = fopen(\"/tmp/window_angle\", \"r\");";
 source = "int value = 0;";
-source = "if (fscanf(f, "%d", &value) != 1) value = 0;";
+source = "if (fscanf(f, \"%d\", &value) != 1) value = 0;";
 source = "fclose(f);";
 source = "if (value < 0) value = 0;";
 source = "if (value > 50) value = 50;";

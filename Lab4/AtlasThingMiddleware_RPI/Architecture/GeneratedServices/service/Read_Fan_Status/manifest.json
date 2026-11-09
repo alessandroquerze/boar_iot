@@ -1,0 +1,9 @@
+
+{
+	"bundle.symbolic_name": "Read_Fan_Status",
+	"bundle.activator":     true,
+	"bundle.name"         : "Service Read_Fan_Status",
+	"bundle.description"  : "This bundle is service type"
+}
+
+
