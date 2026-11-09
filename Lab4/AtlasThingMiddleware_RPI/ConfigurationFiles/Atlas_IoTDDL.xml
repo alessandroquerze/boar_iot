@@ -9,7 +9,7 @@
 			<Thing_ReleaseDate>11/2026</Thing_ReleaseDate>
 			<Thing_Type>Thing of Things</Thing_Type>
 			<Thing_OperatingSystem>Raspbian</Thing_OperatingSystem>
-			<Thing_ShortDescription>The room's air quality is managed controlling a fan and a window based on the measurements of a temperature and humidity sensor, all operating in an IoT environment</Thing_ShortDescription>
+			<Thing_ShortDescription>Air quality control system</Thing_ShortDescription>
 			<LongDescription></LongDescription>
 			<Thing_SSID>BoarSmartSpace</Thing_SSID>
 			<Space_Coordinates></Space_Coordinates>
@@ -86,7 +86,7 @@
 		<Entity_1>
 			<Descriptive_Metadata>
 				<ID>ClimateSensor</ID>
-				<Name>Temperature & Humidity Sensor DHT11</Name>
+				<Name>Temperature and Humidity Sensor DHT11</Name>
 				<Owner>BoarGroup</Owner>
 				<Vendor></Vendor>
 				<Category>Hardware</Category>
@@ -115,7 +115,7 @@
 							<EndTime></EndTime>
 						</Callable>
 					</Temporal_Constraints>
-					<OutputDescription>Calibrates the sensor</OutputDescription>
+					<OutputDescription>Calibrates_the_sensor</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
 #define DHT_ATTEMPTS 3
@@ -158,7 +158,7 @@ return -1;
 							<EndTime></EndTime>
 						</Callable>
 					</Temporal_Constraints>
-					<OutputDescription>Returns the temperature in Fahrenheit or Celsius</OutputDescription>
+					<OutputDescription>Returns_temperature</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
 #define DHT_PIN    17
@@ -209,7 +209,7 @@ return temperature;
 ]]></Service_Formula>
 					<Service_NumberInputs>1</Service_NumberInputs>
 					<Service_InputTypes>int</Service_InputTypes>
-					<Service_InputDescriptions>"F_or_C"</Service_InputDescriptions>
+					<Service_InputDescriptions>F_or_C</Service_InputDescriptions>
 					<Library_Number>1</Library_Number>
 					<Libraries>wiringPi.h</Libraries>
 					<ADC_Number>0</ADC_Number>
@@ -235,7 +235,7 @@ return temperature;
 							<EndTime></EndTime>
 						</Callable>
 					</Temporal_Constraints>
-					<OutputDescription>Returns the percentage of humidity</OutputDescription>
+					<OutputDescription>Returns_humidity</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
 #define DHT_PIN    17
@@ -329,7 +329,7 @@ return humidity;
 							<EndTime></EndTime>
 						</Callable>
 					</Temporal_Constraints>
-					<OutputDescription>Turns the fan on at a certain speed and returns the applied speed</OutputDescription>
+					<OutputDescription>Turns_on_fan</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
 #define FAN_PIN    13
@@ -358,7 +358,7 @@ return speed;
 ]]></Service_Formula>
 					<Service_NumberInputs>1</Service_NumberInputs>
 					<Service_InputTypes>int</Service_InputTypes>
-					<Service_InputDescriptions>"speed"</Service_InputDescriptions>
+					<Service_InputDescriptions>speed</Service_InputDescriptions>
 					<Library_Number>1</Library_Number>
 					<Libraries>wiringPi.h</Libraries>
 					<ADC_Number>0</ADC_Number>
@@ -384,7 +384,7 @@ return speed;
 							<EndTime></EndTime>
 						</Callable>
 					</Temporal_Constraints>
-					<OutputDescription>Turns off the fan</OutputDescription>
+					<OutputDescription>Turns_off_fan</OutputDescription>
 					<OutputType>void</OutputType>
 					<Service_Formula><![CDATA[
 #define FAN_PIN    13
@@ -433,7 +433,7 @@ fclose(f);
 							<EndTime></EndTime>
 						</Callable>
 					</Temporal_Constraints>
-					<OutputDescription>Returns the actual speed of the fan</OutputDescription>
+					<OutputDescription>Returns_fan_speed</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
 #define FAN_MAX_PCT 75
@@ -479,7 +479,7 @@ return value;
 							<EndTime></EndTime>
 						</Callable>
 					</Temporal_Constraints>
-					<OutputDescription>Returns the status of the fan</OutputDescription>
+					<OutputDescription>Returns_fan_status</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
 static const char* FAN_STATE_FILE = "/tmp/fan_speed";
@@ -557,7 +557,7 @@ return (value <= 0) ? 0 : 1;
 							<EndTime></EndTime>
 						</Callable>
 					</Temporal_Constraints>
-					<OutputDescription>Opens the window and returns the applied angle</OutputDescription>
+					<OutputDescription>Opens_window</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
 #define SERVO_PIN  18
@@ -588,7 +588,7 @@ return angle;
 ]]></Service_Formula>
 					<Service_NumberInputs>1</Service_NumberInputs>
 					<Service_InputTypes>int</Service_InputTypes>
-					<Service_InputDescriptions>"angle"</Service_InputDescriptions>
+					<Service_InputDescriptions>angle</Service_InputDescriptions>
 					<Library_Number>1</Library_Number>
 					<Libraries>wiringPi.h</Libraries>
 					<ADC_Number>0</ADC_Number>
@@ -614,7 +614,7 @@ return angle;
 							<EndTime></EndTime>
 						</Callable>
 					</Temporal_Constraints>
-					<OutputDescription>Closes the window</OutputDescription>
+					<OutputDescription>Closes_window</OutputDescription>
 					<OutputType>void</OutputType>
 					<Service_Formula><![CDATA[
 #define SERVO_PIN  18
@@ -664,7 +664,7 @@ fclose(f);
 							<EndTime></EndTime>
 						</Callable>
 					</Temporal_Constraints>
-					<OutputDescription>Returns the angle of the window</OutputDescription>
+					<OutputDescription>Returns_window_angle</OutputDescription>
 					<OutputType>int</OutputType>
 					<Service_Formula><![CDATA[
 #define WINDOW_MAX_ANGLE 50
