@@ -20,7 +20,7 @@ class ServiceSet_Window : public Service
 	// type+name gathered from the DDL `<OutputType>' and `<OutputName>'
 	// FIXME: not thread-safe in its current form
 	
-	int Opens_window = {};
+	int Window_angle = {};
 	
 
 	// use a `va_list' to get known parameters dynamically
@@ -48,13 +48,9 @@ class ServiceSet_Window : public Service
 		
 		#define PWM_RANGE  2000
 		
-		/* the window opens 0-50 degrees from the closed (centred) position */
-		
 		if (angle < 0) angle = 0;
 		
 		if (angle > WINDOW_MAX_ANGLE) angle = WINDOW_MAX_ANGLE;
-		
-		/* 50 Hz hardware PWM on channel 0: 150 ticks = 1.5 ms pulse = closed */
 		
 		wiringPiSetupGpio();
 		
@@ -68,8 +64,6 @@ class ServiceSet_Window : public Service
 		
 		pwmWrite(SERVO_PIN, SERVO_CLOSED_PWM + (angle * SERVO_TICKS_180) / 180);
 		
-		/* remember the commanded angle: the servo cannot be read back */
-		
 		FILE* f = fopen("/tmp/window_angle", "w");
 		
 		if (f != nullptr) {
@@ -80,12 +74,12 @@ class ServiceSet_Window : public Service
 		
 		}
 		
-		Opens_window = angle;
+		Window_angle = angle;
 		
 		
 		// cast the static storage to a generic return type
 		
-		return (void*)&Opens_window;
+		return (void*)&Window_angle;
 		
 	}
 

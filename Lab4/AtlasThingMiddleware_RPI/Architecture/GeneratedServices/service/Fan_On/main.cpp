@@ -20,7 +20,7 @@ class ServiceFan_On : public Service
 	// type+name gathered from the DDL `<OutputType>' and `<OutputName>'
 	// FIXME: not thread-safe in its current form
 	
-	int Turns_on_fan = {};
+	int Fan_speed = {};
 	
 
 	// use a `va_list' to get known parameters dynamically
@@ -44,13 +44,9 @@ class ServiceFan_On : public Service
 		
 		#define PWM_RANGE  2000
 		
-		/* clamp the speed to 0-75 percent so the motor never gets full voltage */
-		
 		if (speed < 0) speed = 0;
 		
 		if (speed > FAN_MAX_PCT) speed = FAN_MAX_PCT;
-		
-		/* hardware PWM channel 1; same clock and range as the servo on channel 0 */
 		
 		wiringPiSetupGpio();
 		
@@ -64,8 +60,6 @@ class ServiceFan_On : public Service
 		
 		pwmWrite(FAN_PIN, speed * PWM_RANGE / 100);
 		
-		/* remember the commanded speed: the motor cannot be read back */
-		
 		FILE* f = fopen("/tmp/fan_speed", "w");
 		
 		if (f != nullptr) {
@@ -76,12 +70,12 @@ class ServiceFan_On : public Service
 		
 		}
 		
-		Turns_on_fan = speed;
+		Fan_speed = speed;
 		
 		
 		// cast the static storage to a generic return type
 		
-		return (void*)&Turns_on_fan;
+		return (void*)&Fan_speed;
 		
 	}
 

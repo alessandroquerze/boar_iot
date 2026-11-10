@@ -20,7 +20,7 @@ class ServiceRead_Temp : public Service
 	// type+name gathered from the DDL `<OutputType>' and `<OutputName>'
 	// FIXME: not thread-safe in its current form
 	
-	int Returns_temperature = {};
+	int Temperature = {};
 	
 
 	// use a `va_list' to get known parameters dynamically
@@ -42,8 +42,6 @@ class ServiceRead_Temp : public Service
 		
 		#define DHT_RETRY_MS 1100
 		
-		/* DHT11 read, inlined: Atlas has no shared helpers between services */
-		
 		unsigned char data[5];
 		
 		int ok = 0;
@@ -60,8 +58,6 @@ class ServiceRead_Temp : public Service
 		
 		    for (int k = 0; k < 5; k++) data[k] = 0;
 		
-		    /* wake-up pulse: hold the line LOW for 20 ms, then release it */
-		
 		    pinMode(DHT_PIN, OUTPUT);
 		
 		    digitalWrite(DHT_PIN, LOW);
@@ -71,8 +67,6 @@ class ServiceRead_Temp : public Service
 		    pinMode(DHT_PIN, INPUT);
 		
 		    pullUpDnControl(DHT_PIN, PUD_UP);
-		
-		    /* handshake: the sensor answers LOW 80 us then HIGH 80 us */
 		
 		    int good = 1;
 		
@@ -87,8 +81,6 @@ class ServiceRead_Temp : public Service
 		        }
 		
 		    }
-		
-		    /* 40 data bits: a HIGH pulse longer than 50 us is a 1 */
 		
 		    for (int i = 0; i < 40 && good; i++) {
 		
@@ -116,24 +108,20 @@ class ServiceRead_Temp : public Service
 		
 		    }
 		
-		    /* the fifth byte is the checksum of the first four */
-		
 		    if (good && ((data[0] + data[1] + data[2] + data[3]) & 0xFF) == data[4]) ok = 1;
 		
 		}
 		
-		/* data[2] is the integer part of the temperature in C; F_or_C 1 = Fahrenheit; -1 = read failed */
+		if (!ok) Temperature = -1;
 		
-		if (!ok) Returns_temperature = -1;
+		else if (F_or_C == 1) Temperature = data[2] * 9 / 5 + 32;
 		
-		else if (F_or_C == 1) Returns_temperature = data[2] * 9 / 5 + 32;
-		
-		else Returns_temperature = data[2];
+		else Temperature = data[2];
 		
 		
 		// cast the static storage to a generic return type
 		
-		return (void*)&Returns_temperature;
+		return (void*)&Temperature;
 		
 	}
 

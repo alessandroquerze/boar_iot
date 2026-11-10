@@ -38,8 +38,6 @@ class ServiceFan_Off : public Service
 		
 		#define PWM_RANGE  2000
 		
-		/* duty cycle 0 stops the motor; keep the shared clock and range for the servo */
-		
 		wiringPiSetupGpio();
 		
 		pinMode(FAN_PIN, PWM_OUTPUT);

@@ -1,11 +1,10 @@
 autogen definitions service;
-output = { name = Returns_fan_status; type = "int"; };
+output = { name = Fan_status; type = "int"; };
 name = Read_Fan_Status;
-source = "/* 1 = fan on (last commanded speed above 0), 0 = off */";
 source = "int value = 0;";
 source = "FILE* f = fopen(\"/tmp/fan_speed\", \"r\");";
 source = "if (f != nullptr) {";
 source = "    if (fscanf(f, \"%d\", &value) != 1) value = 0;";
 source = "    fclose(f);";
 source = "}";
-source = "Returns_fan_status = (value > 0) ? 1 : 0;";
+source = "Fan_status = (value > 0) ? 1 : 0;";
