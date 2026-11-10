@@ -18,7 +18,7 @@ class ServiceRead_Fan_Speed : public Service
 	// type+name gathered from the DDL `<OutputType>' and `<OutputName>'
 	// FIXME: not thread-safe in its current form
 	
-	int Returns_fan_speed = {};
+	int Fan_speed = {};
 	
 
 	// use a `va_list' to get known parameters dynamically
@@ -33,8 +33,6 @@ class ServiceRead_Fan_Speed : public Service
 		// for now, the whole function body is specified in the DDL `<Source>'
 		
 		#define FAN_MAX_PCT 75
-		
-		/* last commanded speed, 0 if the fan was never started */
 		
 		int value = 0;
 		
@@ -52,12 +50,12 @@ class ServiceRead_Fan_Speed : public Service
 		
 		if (value > FAN_MAX_PCT) value = FAN_MAX_PCT;
 		
-		Returns_fan_speed = value;
+		Fan_speed = value;
 		
 		
 		// cast the static storage to a generic return type
 		
-		return (void*)&Returns_fan_speed;
+		return (void*)&Fan_speed;
 		
 	}
 

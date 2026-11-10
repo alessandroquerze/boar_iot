@@ -5,7 +5,6 @@ name = Fan_Off;
 source = "#define FAN_PIN 13";
 source = "#define PWM_CLOCK  192";
 source = "#define PWM_RANGE  2000";
-source = "/* duty cycle 0 stops the motor; keep the shared clock and range for the servo */";
 source = "wiringPiSetupGpio();";
 source = "pinMode(FAN_PIN, PWM_OUTPUT);";
 source = "pwmSetMode(PWM_MODE_MS);";

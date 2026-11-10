@@ -18,7 +18,7 @@ class ServiceRead_Window_Position : public Service
 	// type+name gathered from the DDL `<OutputType>' and `<OutputName>'
 	// FIXME: not thread-safe in its current form
 	
-	int Returns_window_angle = {};
+	int Window_angle = {};
 	
 
 	// use a `va_list' to get known parameters dynamically
@@ -33,8 +33,6 @@ class ServiceRead_Window_Position : public Service
 		// for now, the whole function body is specified in the DDL `<Source>'
 		
 		#define WINDOW_MAX_ANGLE 50
-		
-		/* last commanded angle, 0 (closed) if never set */
 		
 		int value = 0;
 		
@@ -52,12 +50,12 @@ class ServiceRead_Window_Position : public Service
 		
 		if (value > WINDOW_MAX_ANGLE) value = WINDOW_MAX_ANGLE;
 		
-		Returns_window_angle = value;
+		Window_angle = value;
 		
 		
 		// cast the static storage to a generic return type
 		
-		return (void*)&Returns_window_angle;
+		return (void*)&Window_angle;
 		
 	}
 

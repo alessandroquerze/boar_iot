@@ -18,7 +18,7 @@ class ServiceRead_Fan_Status : public Service
 	// type+name gathered from the DDL `<OutputType>' and `<OutputName>'
 	// FIXME: not thread-safe in its current form
 	
-	int Returns_fan_status = {};
+	int Fan_status = {};
 	
 
 	// use a `va_list' to get known parameters dynamically
@@ -32,8 +32,6 @@ class ServiceRead_Fan_Status : public Service
 		// codegen will be more advanced/fine-grained, eventually
 		// for now, the whole function body is specified in the DDL `<Source>'
 		
-		/* 1 = fan on (last commanded speed above 0), 0 = off */
-		
 		int value = 0;
 		
 		FILE* f = fopen("/tmp/fan_speed", "r");
@@ -46,12 +44,12 @@ class ServiceRead_Fan_Status : public Service
 		
 		}
 		
-		Returns_fan_status = (value > 0) ? 1 : 0;
+		Fan_status = (value > 0) ? 1 : 0;
 		
 		
 		// cast the static storage to a generic return type
 		
-		return (void*)&Returns_fan_status;
+		return (void*)&Fan_status;
 		
 	}
 

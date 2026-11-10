@@ -6,7 +6,6 @@ source = "#define SERVO_PIN        18";
 source = "#define SERVO_CLOSED_PWM 150";
 source = "#define PWM_CLOCK  192";
 source = "#define PWM_RANGE  2000";
-source = "/* back to the centred pulse, which is the closed position */";
 source = "wiringPiSetupGpio();";
 source = "pinMode(SERVO_PIN, PWM_OUTPUT);";
 source = "pwmSetMode(PWM_MODE_MS);";

@@ -40,8 +40,6 @@ class ServiceWindow_Close : public Service
 		
 		#define PWM_RANGE  2000
 		
-		/* back to the centred pulse, which is the closed position */
-		
 		wiringPiSetupGpio();
 		
 		pinMode(SERVO_PIN, PWM_OUTPUT);

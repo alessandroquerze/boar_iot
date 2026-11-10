@@ -212,6 +212,13 @@ The grammar and the orchestrator's control flow are covered by
 [`PartOne/edge/parser.test.js`](PartOne/edge/parser.test.js), which runs without a broker or a
 Pi: `node PartOne/edge/parser.test.js`.
 
+# Part Two
+
+To compile the DemoIoT applicaztion:
+```
+g++ -std=c++17 -O2 atlas_demo.cpp -o atlas_demo.exe -lws2_32
+```
+
 ## File structure
 
 ```

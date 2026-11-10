@@ -20,7 +20,7 @@ class ServiceCalibrate_Sensor : public Service
 	// type+name gathered from the DDL `<OutputType>' and `<OutputName>'
 	// FIXME: not thread-safe in its current form
 	
-	int Calibrates_the_sensor = {};
+	int Calibration = {};
 	
 
 	// use a `va_list' to get known parameters dynamically
@@ -40,8 +40,6 @@ class ServiceCalibrate_Sensor : public Service
 		
 		#define DHT_RETRY_MS 1100
 		
-		/* DHT11 read, inlined: Atlas has no shared helpers between services */
-		
 		unsigned char data[5];
 		
 		int ok = 0;
@@ -58,8 +56,6 @@ class ServiceCalibrate_Sensor : public Service
 		
 		    for (int k = 0; k < 5; k++) data[k] = 0;
 		
-		    /* wake-up pulse: hold the line LOW for 20 ms, then release it */
-		
 		    pinMode(DHT_PIN, OUTPUT);
 		
 		    digitalWrite(DHT_PIN, LOW);
@@ -69,8 +65,6 @@ class ServiceCalibrate_Sensor : public Service
 		    pinMode(DHT_PIN, INPUT);
 		
 		    pullUpDnControl(DHT_PIN, PUD_UP);
-		
-		    /* handshake: the sensor answers LOW 80 us then HIGH 80 us */
 		
 		    int good = 1;
 		
@@ -85,8 +79,6 @@ class ServiceCalibrate_Sensor : public Service
 		        }
 		
 		    }
-		
-		    /* 40 data bits: a HIGH pulse longer than 50 us is a 1 */
 		
 		    for (int i = 0; i < 40 && good; i++) {
 		
@@ -114,20 +106,16 @@ class ServiceCalibrate_Sensor : public Service
 		
 		    }
 		
-		    /* the fifth byte is the checksum of the first four */
-		
 		    if (good && ((data[0] + data[1] + data[2] + data[3]) & 0xFF) == data[4]) ok = 1;
 		
 		}
 		
-		/* 1 = sensor answered within 3 attempts, -1 = it did not */
-		
-		Calibrates_the_sensor = ok ? 1 : -1;
+		Calibration = ok ? 1 : -1;
 		
 		
 		// cast the static storage to a generic return type
 		
-		return (void*)&Calibrates_the_sensor;
+		return (void*)&Calibration;
 		
 	}
 
