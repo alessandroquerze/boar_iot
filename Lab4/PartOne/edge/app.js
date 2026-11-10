@@ -251,10 +251,12 @@ function parseCondition(text) {
 // Statements can nest, so the parser walks a flat line list with a cursor
 // rather than slicing the source into independent blocks.
 
+// Function that returns the current line, represented by "cursor.i"
 function peek(cursor) {
   return cursor.i < cursor.lines.length ? cursor.lines[cursor.i] : null;
 }
 
+// Returns a possible keyword sitting at the start of the line
 function peekKeyword(cursor) {
   const line = peek(cursor);
   if (line === null) return null;
@@ -349,10 +351,11 @@ function parseStatement(cursor) {
   return { kind: "order", calls: [call] };
 }
 
-// Reads statements until one of the stop keywords or the end of the program.
+// Parses the statements within a block
 function parseBlock(cursor, stopKeywords) {
   const statements = [];
 
+  // Statements are parsed until they hit a "stopKeyword"
   while (peek(cursor) !== null && !stopKeywords.includes(peekKeyword(cursor))) {
     statements.push(parseStatement(cursor));
   }
@@ -363,13 +366,12 @@ function parseBlock(cursor, stopKeywords) {
 // Comments, blank lines and indentation are all insignificant: block structure
 // comes from DO/ELSE/END, not from layout.
 function parseProgram(source) {
-  const lines = source
-    .split("\n")
-    .map((line) => line.replace(/\/\/.*$/, "").trim())
-    .filter((line) => line !== "");
+  const lines = source.split("\n")                      // Divided into lines
+    .map((line) => line.replace(/\/\/.*$/, "").trim())  // Commented lines are discarded 
+    .filter((line) => line !== "");                     // Empty lines are discarded 
 
-  // No stop keywords at the top level: a stray ELSE or END is reported by
-  // parseStatement rather than silently ending the program.
+  // We give no "stopKeyword" to the "parseBlock" function, so every
+  // statement has to be parsed end ELSE and END out of place can be caught
   return parseBlock({ lines, i: 0 }, []);
 }
 
@@ -499,7 +501,7 @@ async function runBlock(statements, depth) {
   }
 }
 
-//this is the function called when the relative button is pressed
+// Function called when we press the "Run Button"
 async function runProgram() {
   let statements;
   try {
