@@ -17,7 +17,7 @@ All relationship logic lives in the Edge. This program executes exactly one serv
 wiringPi drives both PWM channels from one clock and `pwmSetRange()` writes both range
 registers, so the two share a frequency. The servo fixes it at clock 192 / range 2000 = 50 Hz
 and the fan inherits it. Expect an audible buzz from the motor, and expect low duties to
-stutter rather than spin — see `../../test/pwm13.c`.
+stutter rather than spin.
 
 ## Services
 
@@ -139,8 +139,3 @@ can share one piece of relationship logic:
 
 `Ctrl-C` (SIGINT) publishes `status=offline`, waits for the PUBACK, then zeroes both PWM
 channels and releases the pins.
-
-## Note on Atlas
-
-Port 6668 belongs to the Atlas middleware, and Atlas drives the same GPIO pins as this
-program. Never run the two at once — stop one before starting the other.

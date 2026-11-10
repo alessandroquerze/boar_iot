@@ -2,3 +2,9 @@ __pycache__/
 build/
 .DS_Store
 __MACOSX/
+.vscode/
+istruzioni_test.md
+servizi
+AtlasThingMiddleware_RPI/
+photos/
+test/
