@@ -11,7 +11,7 @@ All relationship logic lives in the Edge. This program executes exactly one serv
 | Pin | Device | Entity | Direction | Purpose |
 |-----|--------------------|-----------------|-----------|------------------------------|
 | 17  | DHT11 data | `ClimateSensor` | in/out | Bit-banged temperature + humidity |
-| 18  | Servo signal | `Window` | PWM ch0 | Window angle, 0–50° |
+| 18  | Servo signal | `Window` | PWM ch0 | Window angle, 0–175° |
 | 13  | Motor base (2N2222)| `Fan` | PWM ch1 | Fan speed, 0–75 % |
 
 wiringPi drives both PWM channels from one clock and `pwmSetRange()` writes both range
@@ -30,42 +30,33 @@ stutter rather than spin.
 | `Fan` | `Fan_Off` | 0 | – | void |
 | `Fan` | `Read_Fan_Speed` | 0 | – | int speed (0–75) |
 | `Fan` | `Read_Fan_Status` | 0 | – | int (1 on / 0 off) |
-| `Window` | `Set_Window` | 1 | `angle` (0–50) | int applied angle |
+| `Window` | `Set_Window` | 1 | `angle` (0–175) | int applied angle |
 | `Window` | `Window_Close` | 0 | – | void |
 | `Window` | `Read_Window_Position` | 0 | – | int angle |
 
-Inputs are integers and outputs are `int` or `void` throughout, because Part Two's Atlas
-middleware accepts nothing else. Out-of-range inputs are clamped, not rejected; the reply
+Inputs are integers and outputs are `int` or `void` throughout. Out-of-range inputs are clamped, not rejected; the reply
 reports the value actually applied.
 
 ### Window arc and servo calibration
 
-Measured on the bench with `../../test/servocal.c`: 500 µs is 90° clockwise, 1500 µs straight,
-2500 µs 90° counter-clockwise. At 10 µs per duty tick that is **200 ticks per 180°**. The
-nominal 1–2 ms range most examples use covers only the middle half of this servo's travel and
-delivers roughly half the commanded angle.
+The servo is controlled using a calibrated range of 500–2500 µs, corresponding to approximately 180° of rotation. With a resolution of 10 µs per duty tick, this gives 200 duty ticks over 180°, or approximately 1.11° per tick.
 
-The window is **shut with the horn centred** and opens counter-clockwise until its linkage
-binds at 50°:
-
+The window is closed at the servo's minimum position (500 µs) and opens as the commanded angle increases, up to a maximum of 175°:
 ```
-duty = 150 + angle * 200 / 180        angle clamped to 0–50
-  0° -> duty 150 -> 1500 µs (closed)
- 25° -> duty 177 -> 1770 µs
- 50° -> duty 205 -> 2050 µs (fully open)
+duty = (500 + angle * (2000 / 180)) / 10        angle clamped to 0–175
+  0° -> duty 50 -> 500 µs (closed)
+ 90° -> duty 150 -> 1500 µs
+ 175° -> duty 244 -> 2444 µs (fully open)
 ```
 
-So angle 0 is the centre of the servo's travel, not an end stop, and `Window_Close` drives
-1500 µs. Every program here stays inside that arc. The one exception is `servocal.c`, whose
-job is to find end stops — run it only with the horn **disconnected** from the linkage.
+The range of the servo is locked from 0° to 175° to present it to exceeding it's configured operating range.
+So angle 0 is the beginning of the servo's travel and `Window_Close` set the servo again in position 0°.
 
 ### Actuator state is remembered, not measured
 
 A hobby servo has no position feedback, the fan has no tachometer, and wiringPi cannot read a
 PWM register back. So `Read_Window_Position`, `Read_Fan_Speed` and `Read_Fan_Status` all report
-the **last commanded** value, persisted in `/tmp/window_angle` and `/tmp/fan_speed`. Files
-rather than variables because in Part Two each service is a separate Atlas bundle that shares no
-memory with the others — `Read_Fan_Speed` genuinely cannot see anything `Fan_On` left behind.
+the **last commanded** value, persisted in `/tmp/window_angle` and `/tmp/fan_speed`.
 
 `Read_Fan_Status` derives from the same `/tmp/fan_speed` file as `Read_Fan_Speed`, reporting
 `speed > 0`, so the two can never contradict each other.
@@ -123,15 +114,13 @@ mosquitto_pub -h localhost -t vss/boar/call \
   -m '{"id":1,"service":"Read_Temp","inputs":[0]}'
 ```
 
-The reply mirrors the Atlas service-call reply so the Edge and the Part Two demo application
-can share one piece of relationship logic:
-
+This is an examlìple of a reply
 ```json
 {"id":1,"service":"Read_Temp","status":"Successful",
  "description":"Successful Service Call","result":24}
 ```
 
-`result` is `null` for `void` services, where Atlas says `"No Output"`. Failures carry
+`result` is `null` for `void` services. Failures carry
 `"status":"Unsuccessful"` with a `description` of `"Unknown Service"`,
 `"Incorrect service arguments"` or `"Sensor read failed"`.
 

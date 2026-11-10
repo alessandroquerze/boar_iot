@@ -42,15 +42,16 @@ using std::endl;
 #define PWM_CLOCK 192
 #define PWM_RANGE 2000
 
-// Servo calibration from test/servocal.c: 500 us is 90 deg clockwise, 1500 us
-// straight, 2500 us 90 deg counter-clockwise. At 10 us per tick that is 200
+// Servo calibration: 500 us is 0 deg, 1500 us
+// straight, 2500 us 180 deg. At 10 us per tick that is 200
 // ticks for 180 deg of travel.
-#define SERVO_TICKS_180 200
+#define SERVO_TICKS_180 10
 
-// The window is shut with the horn centred and opens counter-clockwise. Its
-// linkage binds past 50 deg, so everything that drives GPIO18 clamps there.
-#define SERVO_CLOSED_PWM 150
-#define WINDOW_MAX_ANGLE 50
+// The window is shut with an angle of 0 and opens counter-clockwise. Its
+// linkage binds past 175 deg, so everything that drives GPIO18 clamps there.
+#define SERVO_CLOSED_PWM 500
+#define WINDOW_MAX_ANGLE 175
+#define SERVO_LEN 2000
 
 #define FAN_MAX_PCT 75
 
@@ -286,12 +287,12 @@ Result svc_read_fan_status() {
 
 Result svc_set_window(int angle) {
   gpio_setup();
-  if (angle < 0)                angle = 0;
+  if (angle < 0)  angle = 0;
   if (angle > WINDOW_MAX_ANGLE) angle = WINDOW_MAX_ANGLE;
 
   pinMode(SERVO_PIN, PWM_OUTPUT);
   pwm_setup();
-  pwmWrite(SERVO_PIN, SERVO_CLOSED_PWM + (angle * SERVO_TICKS_180) / 180);
+  pwmWrite(SERVO_PIN, (SERVO_CLOSED_PWM + (angle * (SERVO_LEN / 180))) / SERVO_TICKS_180);
 
   write_state_int(WINDOW_STATE_FILE, angle);
   return success(angle);
