@@ -1,14 +1,16 @@
-# Lab 4 — Building Microservices for your Smart Space
+# Lab 4: Building Microservices for your Smart Space
 
-B8019 Programming the Internet of Things · Group **boar**
+B8019 Programming the Internet of Things · Group **Boar**
 
-Our smart space is a climate-controlled room. A DHT11 reports temperature and humidity; a servo
-opens and closes a window; a fan clears the air. Each sensor read and each actuator action is
-published as a **service**, and the Edge composes those services into small applications using
-the two relationships: **order-based** (`A THEN B`) and **condition-based**
-(`IF A op X DO B`).
+Our smart space is a climate-controlled room. A DHT11 reports temperature and humidity, a servo
+opens and closes a window, and a fan clears the air. Every sensor read and every actuator action
+is exposed as a **service**, and applications are composed from those services with the two
+relationships: **order-based** (`A THEN B`) and **condition-based** (`IF A op X DO B`).
 
----
+## Quick overview
+
+- **Part One:** Our own C++ service program on the Pi + an Edge dashboard with a mini-IDE, over MQTT ([`PartOne/README.md`](PartOne/README.md))
+- **Part Two:** The same thing, described in IoT-DDL and run by the Atlas middleware, plus a demo application ([`PartTwo/README.md`](PartTwo/README.md))
 
 ## Architecture
 
@@ -28,32 +30,29 @@ the two relationships: **order-based** (`A THEN B`) and **condition-based**
         └──────────────────┘
 ```
 
-Part One and Part Two drive the **same GPIO pins** and never run at the same time. Part One
-deliberately uses MQTT rather than a socket server so that TCP 6668 stays free for Atlas.
+Part One and Part Two drive the **same GPIO pins**, so only one of them runs at a time.
 
 ## Hardware
 
-| Device | Entity | BCM | Header pin | Driven by |
-|---|---|---|---|---|
-| DHT11 data (temp + humidity) | `ClimateSensor` | 17 | 11 | bit-bang, in/out |
+| Device | Entity | BCM pin | Header pin | Driven by |
+| --- | --- | --- | --- | --- |
+| DHT11 data (temperature + humidity) | `ClimateSensor` | 17 | 11 | bit-banged, in/out |
 | Servo signal | `Window` | 18 | 12 | hardware PWM channel 0 |
-| Motor base (2N2222) | `Fan` | 13 | 33 | hardware PWM channel 1 |
+| Motor base, through a 2N2222 | `Fan` | 13 | 33 | hardware PWM channel 1 |
 
-Both PWM channels share one clock and one range in wiringPi, so the servo's 50 Hz requirement
-fixes the fan's frequency too.
+- Both PWM channels share one clock and one range, so the servo's 50 Hz also sets the fan's
+  frequency (clock 192, range 2000).
+- The window is closed with the servo horn centred (1500 µs) and opens to a mechanical limit of
+  **50°**. The fan is capped at **75 %** duty.
 
-The window is shut with the servo horn centred (1500 µs) and opens counter-clockwise to a
-mechanical limit of **50°**, so `Set_Window` takes 0–50 and angle 0 is mid-travel rather than
-an end stop.
-
-Safety notes for the rig (propeller hazard, the two supply grounds) are in `photos/readme.txt`.
+Servo calibration and the PWM details are in [`PartOne/device/README.md`](PartOne/device/README.md).
 
 ## Services
 
 | Entity | Service | #in | Input names | Output |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `ClimateSensor` | `Calibrate_Sensor` | 0 | – | int (1 ok) |
-| `ClimateSensor` | `Read_Temp` | 1 | `F_or_C` (0=C, 1=F) | int degrees |
+| `ClimateSensor` | `Read_Temp` | 1 | `F_or_C` (0 = C, 1 = F) | int degrees |
 | `ClimateSensor` | `Read_Humidity` | 0 | – | int % |
 | `Fan` | `Fan_On` | 1 | `speed` (0–75) | int applied speed |
 | `Fan` | `Fan_Off` | 0 | – | void |
@@ -63,105 +62,44 @@ Safety notes for the rig (propeller hazard, the two supply grounds) are in `phot
 | `Window` | `Window_Close` | 0 | – | void |
 | `Window` | `Read_Window_Position` | 0 | – | int angle |
 
-Every input is an integer and every output is `int` or `void`, because Atlas accepts nothing
-else — so the Part One bodies drop into the Part Two IoT-DDL almost unchanged. The mini-IDE
-additionally accepts `Read_Temp(C)` and `Read_Temp(F)`, but that is Edge-side sugar: the alias
-is resolved to `0`/`1` before the call goes on the wire, since Atlas parses inputs with `stol`.
-
-Neither actuator can be read back from hardware, so `Read_Fan_Speed`, `Read_Fan_Status` and
-`Read_Window_Position` report the last commanded value from `/tmp/fan_speed` and
-`/tmp/window_angle`. Sensor reads are retried up to 3 times, 1.1 s apart, because the DHT11
-fails a single read often. Details in `PartOne/device/README.md`.
-
-## Topic contract (Part One)
-
-Prefix `vss/boar/`. All payloads are JSON.
-
-| Topic | Direction | Payload | QoS | Retained |
-|---|---|---|---|---|
-| `services` | device → all | `{"thing":"RPi-1","services":[{"rpi":…,"entity":…,"name":…,"ninputs":…,"inputs":[…],"output":…}]}` | 1 | yes |
-| `call` | edge → device | `{"id":7,"service":"Read_Temp","inputs":[0]}` | 1 | no |
-| `reply` | device → all | `{"id":7,"service":"Read_Temp","status":"Successful","description":"…","result":24}` | 1 | no |
-| `status` | device → all | `{"status":"online"}` / `{"status":"offline"}` (LWT) | 1 | yes |
-
-`services` is retained so a dashboard opened at any moment immediately receives the service
-vectors.
-
-## Running Part One
-
-Broker setup is unchanged from Lab 3 (`../Lab3/README.md`): Mosquitto on the Pi with a plain
-listener on 1883 and a WebSockets listener on 9001.
-
-```bash
-# on the Pi
-cd PartOne/device && mkdir -p build && cd build
-cmake .. && make
-sudo ./main                      # defaults to localhost:1883
-```
-
-Then open `PartOne/edge/index.html` in a browser, enter the Pi's IP, and click Connect. The
-catalogue fills from the retained message; press **Load examples** in the IDE and **Run program**.
-
-## Mini-IDE grammar
-
-```
-// a single call: RUN on its own, no THEN needed
-RUN  RPi1.Service_A(args)
-
-// order-based: B runs only after A succeeds. THEN may chain.
-RUN  RPi1.Service_A(args)
-THEN RPi1.Service_B(args)
-
-// condition-based. Every IF is closed by END. ELSE is optional.
-// A branch may hold several commands, and IFs may nest.
-IF   RPi1.Service_A() > 28 AND RPi1.Service_B() > 60
-DO   RPi1.Service_C(75)
-     RPi1.Service_D(40)
-     IF   RPi1.Service_E() == 1
-     DO   RPi1.Service_F()
-     END
-ELSE RPi1.Service_G()
-END
-```
-
-Comparisons: > < >= <= == !=
-Combine them with AND and OR. AND binds tighter than OR; there are no
-grouping parentheses, so nest an IF when you need to group.
-A condition stops as soon as its outcome is known, so later predicates
-may never be called.
-
-Commands in a branch need no RUN. Arguments are integers, and Read_Temp
-also accepts C and F for 0 and 1.
-Blank lines and indentation are ignored. // starts a comment.
-
-# Part Two
-
-To compile the DemoIoT applicaztion:
-```
-g++ -std=c++17 -O2 atlas_demo.cpp -o atlas_demo.exe -lws2_32
-```
+- Inputs are integers and outputs are `int` or `void`, this keeps the Part One code reusable in the Part Two IoT-DDL.
+- Out-of-range inputs are transformed to the nearest allowed value, not rejected; the result is the value actually applied.
+- Neither actuator can be read back from hardware, so the three `Read_Fan_*` / `Read_Window_*`
+  services report the **last commanded value**, stored in `/tmp/fan_speed` and
+  `/tmp/window_angle` (0 if nothing was set since boot).
+- DHT11 reads are retried up to 3 times, 1.1 s apart, because a single read fails often.
 
 ## File structure
 
 ```
+
 Lab4/
-├── README.md
+├── README.md                  # this file
 ├── PartOne/
-│   ├── README.md # missing
+│   ├── README.md              # MQTT topics, running Part One, mini-IDE grammar
 │   ├── device/
-│   │   ├── main.cpp           # 10 services + MQTT service server
+│   │   ├── main.cpp           # 10 services + MQTT service server (C++)
 │   │   ├── CMakeLists.txt
-│   │   └── README.md          # pin map, services, build, run
+│   │   └── README.md          # pins, servo calibration, dependencies, build, run
 │   └── edge/
-│       ├── index.html
-│       ├── app.js             # catalogue, parser, orchestrator
-│       ├── parser.test.js     # node parser.test.js — no broker needed
+│       ├── index.html         # dashboard + mini-IDE
+│       ├── app.js             # service catalogue, parser, orchestrator
+│       ├── parser.test.js     # parser/orchestrator tests (Node, no broker)
 │       └── style.css
 └── PartTwo/
-    ├── README.md # missing
-    ├── Atlas_IoTDDL.xml
-    └── demo_app/
-        └── atlas_demo.cpp
+    ├── README.md              # Atlas deployment, IoT-DDL notes, demo application
+    ├── Atlas_IoTDDL.xml       # the thing: 3 entities, 10 services
+    └── demoApp/
+        └── atlas_demo.cpp     # Demo IoT Application (Windows, C++)
 ```
 
-# Distribution of effort
+## Distribution of effort
+
+| Member | Work |
+| --- | --- |
+| Alessandro Querzé | Hardware wiring and testing, IDE, Part Two demo IoT application, Atlas deployment and testing on the Pi |
+| Andrei Radu | IDE, IoT-DDL and Atlas middleware setup, Part One device services, code documentation, reports/READMEs |
+| Enrico Giannini | Edge dashboard and IDE, Part One device services, servo calibration, IoT-DDL debugging, reports/READMEs |
+| Mirko Tonelli | Service design for the sensor and actuators, IDE, Edge orchestrator testing, code documentation, reports/READMEs |
+
+All members took part in design discussions, testing on the hardware and debugging across both parts.

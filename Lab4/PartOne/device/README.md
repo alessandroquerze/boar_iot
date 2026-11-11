@@ -4,25 +4,22 @@ Runs on the Raspberry Pi. Drives the DHT11, the servo and the fan over GPIO, and
 service calls over plain MQTT (TCP 1883) using libmosquitto. Subscribes to `vss/boar/call`,
 publishes `vss/boar/{services,reply,status}`.
 
-All relationship logic lives in the Edge. This program executes exactly one service per call.
-
 ## GPIO pins (BCM numbering)
 
 | Pin | Device | Entity | Direction | Purpose |
-|-----|--------------------|-----------------|-----------|------------------------------|
-| 17  | DHT11 data | `ClimateSensor` | in/out | Bit-banged temperature + humidity |
-| 18  | Servo signal | `Window` | PWM ch0 | Window angle, 0–175° |
-| 13  | Motor base (2N2222)| `Fan` | PWM ch1 | Fan speed, 0–75 % |
+| ----- | -------------------- | ----------------- | ----------- | ------------------------------ |
+| 17 | DHT11 data | `ClimateSensor` | in/out | Bit-banged temperature + humidity |
+| 18 | Servo signal | `Window` | PWM ch0 | Window angle, 0–175° |
+| 13 | Motor base (2N2222) | `Fan` | PWM ch1 | Fan speed, 0–75 % |
 
 wiringPi drives both PWM channels from one clock and `pwmSetRange()` writes both range
 registers, so the two share a frequency. The servo fixes it at clock 192 / range 2000 = 50 Hz
-and the fan inherits it. Expect an audible buzz from the motor, and expect low duties to
-stutter rather than spin.
+and the fan inherits it.
 
 ## Services
 
 | Entity | Service | #inputs | Input names | Output |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `ClimateSensor` | `Calibrate_Sensor` | 0 | – | int (1 ok) |
 | `ClimateSensor` | `Read_Temp` | 1 | `F_or_C` (0=C, 1=F) | int degrees |
 | `ClimateSensor` | `Read_Humidity` | 0 | – | int % |
@@ -34,14 +31,20 @@ stutter rather than spin.
 | `Window` | `Window_Close` | 0 | – | void |
 | `Window` | `Read_Window_Position` | 0 | – | int angle |
 
-Inputs are integers and outputs are `int` or `void` throughout. Out-of-range inputs are clamped, not rejected; the reply
-reports the value actually applied.
+- Inputs are integers and outputs are `int` or `void`, this
+  keeps the Part One code reusable in the Part Two IoT-DDL.
+- Out-of-range inputs are transformed to the nearest allowed value, not rejected; the result is the value actually applied.
+- Neither actuator can be read back from hardware, so the three `Read_Fan_*` / `Read_Window_*`
+  services report the **last commanded value**, stored in `/tmp/fan_speed` and
+  `/tmp/window_angle` (0 if nothing was set since boot).
+- DHT11 reads are retried up to 3 times, 1.1 s apart, because a single read fails often.
 
 ### Window arc and servo calibration
 
 The servo is controlled using a calibrated range of 500–2500 µs, corresponding to approximately 180° of rotation. With a resolution of 10 µs per duty tick, this gives 200 duty ticks over 180°, or approximately 1.11° per tick.
 
 The window is closed at the servo's minimum position (500 µs) and opens as the commanded angle increases, up to a maximum of 175°:
+
 ```
 duty = (500 + angle * (2000 / 180)) / 10        angle clamped to 0–175
   0° -> duty 50 -> 500 µs (closed)
@@ -54,24 +57,24 @@ So angle 0 is the beginning of the servo's travel and `Window_Close` set the ser
 
 ### Actuator state is remembered, not measured
 
-A hobby servo has no position feedback, the fan has no tachometer, and wiringPi cannot read a
+The servo has no position feedback, the fan has no tachometer, and wiringPi cannot read a
 PWM register back. So `Read_Window_Position`, `Read_Fan_Speed` and `Read_Fan_Status` all report
 the **last commanded** value, persisted in `/tmp/window_angle` and `/tmp/fan_speed`.
 
 `Read_Fan_Status` derives from the same `/tmp/fan_speed` file as `Read_Fan_Speed`, reporting
 `speed > 0`, so the two can never contradict each other.
 
-A read before any set — for instance after a reboot clears `/tmp` — returns 0. That is an
+A read before any set, for instance after a reboot clears `/tmp`, returns 0. That is an
 assumption that the window is shut and the fan is off, not a measurement.
 
 ### Sensor reads are retried
 
-A single DHT11 read fails often enough to be a nuisance, so `read_dht11_retry` makes up to
+A single DHT11 read fails often, so `read_dht11_retry` makes up to
 **3 attempts**, waiting **1.1 s** between them because the sensor needs roughly a second
-between conversions — an immediate retry just fails again. All three `ClimateSensor` services
+between conversions, an immediate retry just fails again. All three `ClimateSensor` services
 go through it.
 
-A service that exhausts all three attempts replies `"status":"Unsuccessful"` with
+A service that terminates all three attempts replies `"status":"Unsuccessful"` with
 `"Sensor read failed"`. Worst case it blocks the libmosquitto thread for about 2.3 s, well
 inside both the 60 s keepalive and the Edge's 10 s call timeout.
 
@@ -114,7 +117,8 @@ mosquitto_pub -h localhost -t vss/boar/call \
   -m '{"id":1,"service":"Read_Temp","inputs":[0]}'
 ```
 
-This is an examlìple of a reply
+This is an examìple of a reply
+
 ```json
 {"id":1,"service":"Read_Temp","status":"Successful",
  "description":"Successful Service Call","result":24}
