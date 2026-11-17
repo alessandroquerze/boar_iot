@@ -1,5 +1,13 @@
 # Atlas IoT Application IDE — Project Plan
 
+---
+
+## Useful links
+
+[Google Document](https://docs.google.com/document/d/1VKFvtHHD8RIvbwTrTB6uQKqivUGpet8quuX5LGZL6cA/edit?tab=t.0) to write random things
+[Drawflow](https://jerosoler.github.io/Drawflow/)
+[CodeMirror 6](https://codemirror.net/)
+
 ## 1. Goal
 
 Evolve the Lab 4 mini-IDE (single page, single RPi, custom MQTT protocol, text-only composition) into a **realistic Atlas IoT Application IDE** that:
