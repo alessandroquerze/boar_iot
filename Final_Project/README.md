@@ -8,6 +8,8 @@
 - [Drawflow](https://jerosoler.github.io/Drawflow/)
 - [CodeMirror 6](https://codemirror.net/)
 
+---
+
 ## 1. Goal
 
 Evolve the Lab 4 mini-IDE (single page, single RPi, custom MQTT protocol, text-only composition) into a **realistic Atlas IoT Application IDE** that:
