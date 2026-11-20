@@ -26,7 +26,7 @@ import {
 import { styleTags, tags } from "@lezer/highlight";
 
 import { buildAst, callSignature, walk } from "../lang/ast.js";
-import { astToGraph, graphToAst, layoutOf, parseConditionText } from "../lang/graph.js";
+import { PORTS, astToGraph, graphToAst, layoutOf, parseConditionText, tailOf } from "../lang/graph.js";
 import { describeStatement, predicateText, printProgram } from "../lang/print.js";
 import { parser } from "../lang/iot.parser.js";
 import { catalogueFromSpace, validate } from "../lang/validate.js";
@@ -148,6 +148,9 @@ function buildMarks(state, { added = [], removed = [], reveal = [], ranges = [] 
  */
 export function createEditor({ parent, doc = "", onUserEdit, onCursorLine }) {
   let lastLine = -1;
+  // The marks currently shown. Change highlights and diagnostics are set by
+  // different parts of the IDE, so a partial update must not wipe the rest.
+  let spec = { added: [], removed: [], reveal: [], ranges: [] };
 
   const view = new EditorView({
     parent,
@@ -224,12 +227,19 @@ export function createEditor({ parent, doc = "", onUserEdit, onCursorLine }) {
       if (changes.length > 0) view.dispatch({ changes, annotations: fromModel.of(true) });
     },
 
-    marks(spec) {
+    /** Merge into what is shown: `{ added, removed, reveal, ranges }`. */
+    marks(partial) {
+      spec = { ...spec, ...partial };
       view.dispatch({ effects: setMarks.of(spec), annotations: fromModel.of(true) });
     },
 
+    /** Drop the green/red change highlights, keeping the diagnostics. */
+    clearChangeMarks() {
+      api.marks({ added: [], removed: [], reveal: [] });
+    },
+
     clearMarks() {
-      api.marks({});
+      api.marks({ added: [], removed: [], reveal: [], ranges: [] });
     },
 
     revealLine(line) {
@@ -248,6 +258,7 @@ export function createEditor({ parent, doc = "", onUserEdit, onCursorLine }) {
 
 // What the rest of the IDE needs from lang/, re-exported so there is one copy.
 export {
+  PORTS,
   astToGraph,
   buildAst,
   callSignature,
@@ -258,6 +269,7 @@ export {
   parseConditionText,
   predicateText,
   printProgram,
+  tailOf,
   validate,
   walk,
 };

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { buildAst } from "../lang/ast.js";
-import { astToGraph, graphToAst, layoutOf, parseConditionText } from "../lang/graph.js";
+import { astToGraph, graphToAst, layoutOf, parseConditionText, tailOf } from "../lang/graph.js";
 import { printProgram } from "../lang/print.js";
 
 const print = (ast) => printProgram(ast).text;
@@ -134,6 +134,45 @@ test("the layout can be read back out of the graph", () => {
   const layout = layoutOf(astToGraph(ast, { layout: { [id]: { x: 12, y: 34 } } }));
 
   assert.deepEqual(layout[id], { x: 12, y: 34 });
+});
+
+// --- where a newly added block goes -----------------------------------------
+
+test("the tail of an empty program is the start block", () => {
+  const graph = astToGraph(buildAst(""));
+  assert.deepEqual(tailOf(graph), { nodeId: "1", port: "next" });
+});
+
+test("the tail is after the last statement, not inside a THEN chain", () => {
+  const graph = astToGraph(buildAst("RUN Read_Temp(C)\nTHEN Fan_On(60)"));
+  // Blocks are 1 start, 2 Read_Temp, 3 Fan_On; the chain ends at 3.
+  assert.deepEqual(tailOf(graph), { nodeId: "3", port: "next" });
+});
+
+test("the tail is after an IF, not inside one of its branches", () => {
+  const graph = astToGraph(buildAst("IF Read_Temp(C) > 28\nDO Fan_On(75)\nEND"));
+  const condition = nodesOf(graph).find((node) => node.name === "condition");
+  assert.deepEqual(tailOf(graph), { nodeId: String(condition.id), port: "next" });
+});
+
+test("a block appended at the tail becomes the last statement", () => {
+  const ast = buildAst("RUN Fan_On(75)");
+  const graph = astToGraph(ast);
+  const tail = tailOf(graph);
+
+  // What graph-editor.js does on a drop: add a block, wire it to the tail.
+  graph.drawflow.Home.data[9] = {
+    id: 9,
+    name: "service",
+    data: { astId: "c:new#0", thing: "", service: "Fan_Off" },
+    inputs: { input_1: { connections: [{ node: tail.nodeId, input: "output_1" }] } },
+    outputs: { output_1: { connections: [] }, output_2: { connections: [] } },
+    pos_x: 0,
+    pos_y: 0,
+  };
+  graph.drawflow.Home.data[tail.nodeId].outputs.output_1.connections.push({ node: "9", output: "input_1" });
+
+  assert.equal(print(graphToAst(graph)), "RUN  Fan_On(75)\nRUN  Fan_Off()");
 });
 
 // --- robustness -------------------------------------------------------------

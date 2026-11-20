@@ -9,7 +9,7 @@ import { space } from "./main.js";
 import { activeProject, reprint, setAst } from "./project.js";
 import { syncFromModel } from "./text-editor.js";
 
-const { astToGraph, buildAst, graphToAst, layoutOf, printProgram } = window.AtlasEditor;
+const { PORTS, astToGraph, buildAst, graphToAst, layoutOf, printProgram, tailOf } = window.AtlasEditor;
 
 let editor = null;
 let suspended = false; // true while we are the ones changing the canvas
@@ -39,6 +39,12 @@ export function initGraphEditor({ onChange }) {
   }
   editor.on("nodeMoved", () => {
     if (!suspended) rememberLayout();
+  });
+
+  // Selecting a block scrolls the text to the lines it printed.
+  editor.on("nodeSelected", (id) => {
+    const astId = nodes()[id]?.data?.astId;
+    if (astId) document.dispatchEvent(new CustomEvent("atlas-reveal-lines", { detail: { astId } }));
   });
 
   initDropTarget(container);
@@ -78,21 +84,35 @@ function decorate(graph) {
 
 // --- reacting to the canvas -------------------------------------------------
 
+// One user action can make Drawflow fire several events — deleting a block
+// also removes its connections — so a burst is collapsed into a single model
+// update. Otherwise the second event would re-print the text and cut the change
+// highlight of the first one short.
+let burst = null;
+
 function handleCanvasChange() {
   const project = activeProject();
   if (!project) return;
 
-  const before = new Set(project.lines.keys());
-  const beforeText = project.text;
+  // Which ids were on screen before the change, and on which lines: that is
+  // what tells the text editor which lines to green and which to red.
+  if (!burst || burst.project !== project) burst = { project, beforeLines: project.lines, timer: null };
+  clearTimeout(burst.timer);
+  burst.timer = setTimeout(flushCanvasChange, 0);
+}
+
+function flushCanvasChange() {
+  const { project, beforeLines } = burst;
+  burst = null;
 
   setAst(project, modelFromCanvas());
   rememberLayout();
 
   const after = new Set(project.lines.keys());
   onModelChange(project, {
-    beforeText,
-    addedIds: [...after].filter((id) => !before.has(id)),
-    removedIds: [...before].filter((id) => !after.has(id)),
+    beforeLines,
+    addedIds: [...after].filter((id) => !beforeLines.has(id)),
+    removedIds: [...beforeLines.keys()].filter((id) => !after.has(id)),
   });
 }
 
@@ -152,23 +172,13 @@ function initDropTarget(container) {
 
 /** Add a block for a discovered service. Used by drag-and-drop and by the panel. */
 export function addServiceBlock(thing, service, position = { x: 80, y: 80 }) {
-  const data = { thing: thing ?? "", service: service.name, astId: `c:new${Date.now() % 100000}#0` };
+  const data = { thing: thing ?? "", service: service.name, astId: newId("c") };
   service.inputs.forEach((input, index) => {
     data[`arg${index}`] = "0";
     data[`label${index}`] = input.name;
   });
 
-  editor.addNode(
-    "service",
-    1,
-    2,
-    position.x,
-    position.y,
-    "node-service",
-    data,
-    nodeHtml("service", data),
-    false,
-  );
+  addBlock("service", 2, data, position);
 }
 
 export function addControlBlock(kind) {
@@ -176,11 +186,29 @@ export function addControlBlock(kind) {
 
   const data =
     kind === "condition"
-      ? { condition: "Read_Temp(C) > 25", astId: `if:new${Date.now() % 100000}#0` }
-      : { every: "10", astId: `lp:new${Date.now() % 100000}#0` };
+      ? { condition: "Read_Temp(C) > 25", astId: newId("if") }
+      : { every: "10", astId: newId("lp") };
 
-  const outputs = kind === "condition" ? 3 : 2;
-  editor.addNode(kind, 1, outputs, 90, 90, `node-${kind}`, data, nodeHtml(kind, data), false);
+  addBlock(kind, kind === "condition" ? 3 : 2, data, { x: 90, y: 90 });
+}
+
+// A block that nothing leads to is not part of the program, so a new one is
+// appended to the end of what is already there. The user can always re-wire it.
+function addBlock(kind, outputs, data, position) {
+  const tail = tailOf(editor.export());
+  const id = editor.addNode(kind, 1, outputs, position.x, position.y, `node-${kind}`, data, nodeHtml(kind, data), false);
+
+  if (tail) {
+    const nodeName = nodes()[tail.nodeId]?.name;
+    const port = `output_${(PORTS[nodeName] ?? []).indexOf(tail.port) + 1}`;
+    editor.addConnection(tail.nodeId, id, port, "input_1");
+  }
+  return id;
+}
+
+/** A placeholder id until the next re-print derives one from the program text. */
+function newId(prefix) {
+  return `${prefix}:new${(Math.random() * 1e6) | 0}#0`;
 }
 
 // Drawflow's own recipe for turning a page position into a canvas position.
@@ -271,7 +299,7 @@ function initToolbar() {
     suspended = false;
     reprint(project);
     syncFromModel(project);
-    onModelChange(project, { beforeText: "", addedIds: [], removedIds: [] });
+    onModelChange(project, { beforeLines: new Map(), addedIds: [], removedIds: [] });
   });
 }
 

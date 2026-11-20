@@ -4,6 +4,7 @@
 
 import { initBottomPanel, onBottomClear, render, setCount } from "./bottom-panel.js";
 import { initDevicesPanel } from "./panel-devices.js";
+import { initSettingsPanel } from "./settings.js";
 import {
   activeProject,
   closeProject,
@@ -188,6 +189,10 @@ function applyState(next) {
 }
 
 function connect() {
+  // ?live=0 keeps the page from holding a stream open, which is what the
+  // development probe in public/dev/ needs to be able to settle.
+  if (new URLSearchParams(location.search).get("live") === "0") return;
+
   const events = new EventSource("/api/events");
 
   events.addEventListener("state", (event) => applyState(JSON.parse(event.data)));
@@ -203,10 +208,11 @@ function connect() {
 initActivityBar();
 initBottomPanel();
 initDevicesPanel();
+initSettingsPanel();
 // The two editors are views of one model: a change on either side updates the
 // other. The graph drives the text live; the text drives the graph on Apply.
 initTextEditor({ onApply: (project) => reloadFromModel(project) });
-initGraphEditor({ onChange: (project) => syncFromModel(project) });
+initGraphEditor({ onChange: (project, change) => syncFromModel(project, change) });
 
 document.getElementById("graph-add-condition").addEventListener("click", () => addControlBlock("condition"));
 document.getElementById("graph-add-loop").addEventListener("click", () => addControlBlock("loop"));

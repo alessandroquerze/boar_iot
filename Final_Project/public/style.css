@@ -288,6 +288,27 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 .empty-note { padding: 12px 16px; color: var(--fg-dim); font-size: 12px; }
 
+/* Settings panel */
+.setting {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.setting:hover { background: var(--bg-hover); }
+.setting-label { font-size: 12px; }
+.setting-hint {
+  grid-column: 2;
+  color: var(--fg-dim);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.setting input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; }
+
 /* --------------------------------------------------------------- editor area */
 
 #editorarea {

@@ -162,6 +162,36 @@ export function layoutOf(graph) {
   return layout;
 }
 
+/**
+ * The free port at the end of the program, where a newly added block belongs.
+ * Returns the start block itself for an empty program.
+ * @returns {{nodeId: string, port: string}|null}
+ */
+export function tailOf(graph) {
+  const nodes = graph?.drawflow?.Home?.data ?? {};
+  let node = Object.values(nodes).find((candidate) => candidate.name === "start");
+  if (!node) return null;
+
+  const seen = new Set();
+  while (node && !seen.has(node.id)) {
+    seen.add(node.id);
+
+    // A THEN chain hangs off `ok`; the sequence continues after its last call.
+    let last = node;
+    while (last.name === "service") {
+      const chained = follow(nodes, last, "ok");
+      if (!chained || seen.has(chained.id)) break;
+      seen.add(chained.id);
+      last = chained;
+    }
+
+    const next = follow(nodes, last, "next");
+    if (!next) return { nodeId: String(last.id), port: "next" };
+    node = next;
+  }
+  return null;
+}
+
 function readChain(nodes, from, port, visited, depth) {
   const statements = [];
   let node = follow(nodes, from, port);

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>IDE probe</title>
+  <style>
+    body { margin: 0; background: #111; color: #ddd; font: 12px monospace; }
+    iframe { width: 1500px; height: 920px; border: 0; }
+    #report { padding: 8px 12px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+<!--
+  A development aid, not part of the IDE. It loads the IDE in a same-origin
+  iframe, performs one scripted interaction and writes what happened into
+  #report, so the behaviour can be checked from a terminal:
+
+    google-chrome --headless=new --virtual-time-budget=8000 --dump-dom \
+      'http://localhost:7000/dev/probe.html?s=lock'
+
+  Scenarios:  lock | remove | add | invalid | apply
+  Under a virtual-time budget every timer fires at once, so each step records
+  what it sees immediately after acting, before the timers that follow it run.
+-->
+<div id="report">running…</div>
+<iframe id="ide" src="/?sample=1&amp;panel=devices&amp;live=0"></iframe>
+
+<script>
+const scenario = new URLSearchParams(location.search).get("s") ?? "lock";
+const frame = document.getElementById("ide");
+const lines = [];
+
+const say = (text) => {
+  lines.push(text);
+  document.getElementById("report").textContent = lines.join("\n");
+};
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function until(test, timeout = 6000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if (test()) return true;
+    await wait(50);
+  }
+  return false;
+}
+
+// --- reading the IDE's state -------------------------------------------------
+
+const doc = () => frame.contentDocument;
+const text = () => [...doc().querySelectorAll(".cm-line")].map((line) => line.textContent).join("\n");
+const marked = (cls) =>
+  [...doc().querySelectorAll(`.cm-line.${cls}`)].map((line) => JSON.stringify(line.textContent));
+const locked = () => doc().getElementById("graph-pane").dataset.locked;
+const blockCount = () => doc().querySelectorAll(".drawflow-node").length;
+const consoleLines = () =>
+  [...doc().querySelectorAll("#console-body .line")].map((line) => line.textContent.trim());
+
+// --- acting on the IDE -------------------------------------------------------
+
+function typeInto(content, insert) {
+  content.focus();
+  const selection = frame.contentWindow.getSelection();
+  selection.selectAllChildren(content.querySelector(".cm-line"));
+  selection.collapseToEnd();
+  doc().execCommand("insertText", false, insert);
+}
+
+// Drawflow selects a block from a mousedown whose target is inside
+// .drawflow_content_node, and listens for Delete on its own container.
+function clickNode(node) {
+  const target = node.querySelector(".drawflow_content_node") ?? node;
+  for (const type of ["mousedown", "mouseup", "click"]) {
+    target.dispatchEvent(new frame.contentWindow.MouseEvent(type, { bubbles: true, clientX: 10, clientY: 10 }));
+  }
+}
+
+function pressDelete() {
+  doc()
+    .getElementById("drawflow")
+    .dispatchEvent(new frame.contentWindow.KeyboardEvent("keydown", { key: "Delete", bubbles: true }));
+}
+
+function dropService(name) {
+  const row = [...doc().querySelectorAll("#devices-list .row.service")].find((candidate) =>
+    candidate.textContent.startsWith(name),
+  );
+  if (!row) return say(`! no service row for ${name}`);
+
+  const transfer = new frame.contentWindow.DataTransfer();
+  row.dispatchEvent(new frame.contentWindow.DragEvent("dragstart", { bubbles: true, dataTransfer: transfer }));
+
+  const canvas = doc().getElementById("drawflow");
+  canvas.dispatchEvent(
+    new frame.contentWindow.DragEvent("drop", {
+      bubbles: true,
+      dataTransfer: transfer,
+      clientX: 700,
+      clientY: 600,
+    }),
+  );
+}
+
+// --- the scenarios -----------------------------------------------------------
+
+const SCENARIOS = {
+  async lock() {
+    const content = doc().querySelector(".cm-content");
+    say(`before: locked=${locked()} apply-disabled=${doc().getElementById("text-apply").disabled}`);
+    typeInto(content, "  ");
+    await wait(0);
+    say(`after typing: locked=${locked()} apply-disabled=${doc().getElementById("text-apply").disabled}`);
+    await wait(500); // let the blur transition finish before measuring it
+    say(`blur filter: ${frame.contentWindow.getComputedStyle(doc().getElementById("drawflow")).filter}`);
+    say(`pointer events: ${frame.contentWindow.getComputedStyle(doc().getElementById("drawflow")).pointerEvents}`);
+    say(`overlay shown: ${frame.contentWindow.getComputedStyle(doc().getElementById("graph-lock")).display}`);
+  },
+
+  async remove() {
+    const before = text();
+    const block = [...doc().querySelectorAll(".drawflow-node")].find((node) =>
+      node.textContent.includes("Set_Window"),
+    );
+    say(`blocks before: ${blockCount()}`);
+    clickNode(block);
+    pressDelete();
+    // One tick: enough for the editors to catch up, not enough for the timer
+    // that takes the red lines away.
+    await wait(0);
+
+    say(`blocks after: ${blockCount()}`);
+    say(`red lines: ${marked("cm-removed").join(" ") || "(none)"}`);
+    say(`doc while red:\n${text()}`);
+    await wait(3000); // virtual time: lets the removal and fade timers run
+    say(`doc after:\n${text()}`);
+    say(`changed: ${before !== text()}`);
+  },
+
+  async add() {
+    say(`blocks before: ${blockCount()}`);
+    dropService("Window_Close");
+    await wait(0); // the canvas collapses an event burst into one model update
+    say(`blocks after: ${blockCount()}`);
+    say(`green lines: ${marked("cm-added").join(" ") || "(none)"}`);
+    say(`doc:\n${text()}`);
+  },
+
+  async invalid() {
+    const content = doc().querySelector(".cm-content");
+    typeInto(content, "IF Read_Temp(C");
+    await wait(300);
+    say(`console: ${consoleLines().join(" | ")}`);
+    say(`red ranges: ${doc().querySelectorAll(".cm-invalid").length}`);
+
+    const blocksBefore = blockCount();
+    doc().getElementById("text-apply").click();
+    await wait(300);
+    say(`after apply: locked=${locked()} blocks ${blocksBefore} -> ${blockCount()}`);
+    say(`hint: ${doc().getElementById("text-hint").textContent}`);
+    say(`console: ${consoleLines().join(" | ")}`);
+  },
+
+  async apply() {
+    const content = doc().querySelector(".cm-content");
+    typeInto(content, "RUN  AT_BoarAirSensor.Window_Close()\n");
+    await wait(300);
+    const blocksBefore = blockCount();
+    doc().getElementById("text-apply").click();
+    await wait(500);
+    say(`blocks ${blocksBefore} -> ${blockCount()}`);
+    say(`locked after apply: ${locked()}`);
+    say(`doc:\n${text()}`);
+  },
+};
+
+frame.addEventListener("load", async () => {
+  const ready = await until(() => doc().querySelector(".cm-content") && blockCount() > 2);
+  if (!ready) return say("! the IDE did not finish loading");
+
+  // Headless runs with a frozen animation clock, so a transition would be read
+  // half-way. Turning them off makes every measurement the final value.
+  const style = doc().createElement("style");
+  style.textContent = "* { transition: none !important; animation: none !important; }";
+  doc().head.appendChild(style);
+
+  say(`scenario: ${scenario}`);
+  try {
+    await SCENARIOS[scenario]();
+    say("-- done --");
+  } catch (error) {
+    say(`! ${error.message}\n${error.stack}`);
+  }
+});
+</script>
+</body>
+</html>

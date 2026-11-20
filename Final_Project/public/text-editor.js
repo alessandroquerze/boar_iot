@@ -7,6 +7,7 @@
 
 import { activeProject, markDirty, notifyProjectsChanged, reprint, setAst, setConsole } from "./project.js";
 import { render, setCount, showTab } from "./bottom-panel.js";
+import { getSetting } from "./settings.js";
 
 const { createEditor, catalogueFromSpace, validate } = window.AtlasEditor;
 
@@ -15,6 +16,8 @@ let current = null; // the project the view currently shows
 let applyHandler = () => {};
 let catalogue = new Map();
 const elements = {};
+// Timers of a change highlight that has not finished playing out yet.
+const pending = { remove: null, fade: null };
 
 export function initTextEditor({ onApply }) {
   applyHandler = onApply ?? (() => {});
@@ -31,6 +34,14 @@ export function initTextEditor({ onApply }) {
 
   elements.apply.addEventListener("click", applyChanges);
   elements.discard.addEventListener("click", discardChanges);
+
+  // Selecting a block on the canvas scrolls to the lines it printed.
+  document.addEventListener("atlas-reveal-lines", (event) => {
+    const lines = current?.lines.get(event.detail.astId);
+    if (!lines?.length) return;
+    editor.marks({ reveal: lines });
+    editor.revealLine(lines[0]);
+  });
 }
 
 export function setCatalogue(space) {
@@ -41,6 +52,7 @@ export function setCatalogue(space) {
 
 /** Show a project, or nothing when every tab is closed. */
 export function showProject(project) {
+  clearPending();
   current = project;
   if (!project) {
     editor.setText("");
@@ -55,11 +67,67 @@ export function showProject(project) {
   updateToolbar();
 }
 
-/** Called by the graph side after it changed the model. */
-export function syncFromModel(project, marks = {}) {
+/**
+ * Called by the graph side after it changed the model.
+ *
+ * This is the prompt's graph-to-text synchronisation. A block or connection that
+ * appeared highlights its new lines green; one that disappeared turns its lines
+ * red, and then the empty lines are removed. Both are computed from the AST ids
+ * each line belongs to, so the marks are exact rather than guessed from a diff.
+ *
+ * @param {object} project
+ * @param {{beforeLines?: Map<string, number[]>, addedIds?: string[], removedIds?: string[]}} change
+ */
+export function syncFromModel(project, change = {}) {
   if (project !== current) return;
-  editor.setText(project.text);
-  if (marks.added || marks.removed) editor.marks(marks);
+  clearPending();
+
+  const { beforeLines, addedIds = [], removedIds = [] } = change;
+  const text = project.text;
+  const addedLines = () => addedIds.flatMap((id) => project.lines.get(id) ?? []);
+
+  if (!getSetting("highlightChanges")) {
+    editor.setText(text);
+    editor.clearChangeMarks();
+    showDiagnostics(project, validate(text, { catalogue }));
+    return;
+  }
+
+  const removedLines = removedIds.flatMap((id) => beforeLines?.get(id) ?? []);
+
+  if (removedLines.length === 0) {
+    editor.setText(text);
+    showAdded(addedLines());
+    showDiagnostics(project, validate(text, { catalogue }));
+    return;
+  }
+
+  // Show what went away before it goes: the lines are emptied in place and
+  // marked red, and only then are the empty lines taken out.
+  editor.blankLines(removedLines);
+  editor.marks({ removed: removedLines });
+
+  pending.remove = setTimeout(() => {
+    editor.dropLines(removedLines);
+    editor.setText(text);
+    showAdded(addedLines());
+    showDiagnostics(project, validate(text, { catalogue }));
+  }, getSetting("highlightRedMs"));
+}
+
+function showAdded(lines) {
+  // Also drops the red marks: by now the lines they pointed at are gone, and a
+  // leftover decoration would reattach itself to whatever moved up into them.
+  editor.marks({ added: lines, removed: [], reveal: [] });
+  if (lines.length === 0) return;
+  pending.fade = setTimeout(() => editor.clearChangeMarks(), getSetting("highlightFadeMs"));
+}
+
+function clearPending() {
+  clearTimeout(pending.remove);
+  clearTimeout(pending.fade);
+  pending.remove = null;
+  pending.fade = null;
 }
 
 export function editorHandle() {
@@ -71,6 +139,9 @@ export function editorHandle() {
 function handleUserEdit() {
   const project = current;
   if (!project) return;
+
+  // A highlight still playing out would fight with what is being typed.
+  clearPending();
 
   // The first keystroke locks the graph.
   if (!project.editingText) {
