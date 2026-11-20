@@ -1,27 +1,32 @@
 # Checkpoint
 Updated: 2026-11-20
-Done: planning session — read `AGENTS.md`, `docs/Guidelines.pdf` and the Lab 4
-reference (`../Lab4`: edge mini-IDE, device services, IoT-DDL, Atlas middleware
-tweet/call formats). Wrote `PLAN.md` (= the `PROJECT.md` of `AGENTS.md`),
-`directive_conflicts.md` (7 conflicts, C1–C7), `QUESTIONS.md` (13 questions) and the
-two pointer files `PROJECT.md` / `docs/guideline-conflicts.md`.
+Done: plan steps 0–7. Decisions D1–D13 recorded in `PLAN.md` §12 (all the
+recommended defaults; `QUESTIONS.md` is closed). Tag `plan-approved` is the
+planning-only tree to restart from.
+ 0 decisions · 1 `docs/tweets.md` · 2 server + VS Code shell · 3 the language
+ (Lezer grammar, AST, printer, validator) · 4 discovery (space model, simulator,
+ Atlas gateway, Devices panel) · 5 text editor (CodeMirror 6, projects, tabs)
+ · 6 graphical editor (Drawflow, AST↔graph) · 7 green/red sync, settings,
+ selection sync. 69 tests pass; `npm run build` outputs are committed.
 
-Current: step 0 — waiting for the user's answers in `QUESTIONS.md`.
-No code written yet, by design: the prompt says to stop and ask before building.
+Current: step 8 — projects and tabs. Most of it landed in step 5 (one project
+object per tab, each with its own AST, text, layout, console and lock state).
+What is left is hardening: check that two tabs really do not leak state into
+each other, and that closing the last tab leaves the editors empty.
 
-Next action: read the user's answers in `QUESTIONS.md`, fold them into `PLAN.md`
-§§4–9, empty `QUESTIONS.md`, then start plan step 1 (capture the real Atlas tweets
-into `docs/tweets.md`) or step 2 (skeleton) if no hardware is available.
+Next action: open two projects with `?new=1`, confirm the Devices panel, the
+console and the canvas all follow the active tab, then start step 9 (the app
+manager: `server/apps.js`, the Apps panel, `update`/finalize/delete, the `.iot`
+naming rules).
 
-Open questions: all 13 in `QUESTIONS.md`. The blocking ones are
-Q1 (Node.js server + no hardware here), Q2 (where *clear*/*finalize*/*new*/*upload*
-go, and whether `update` means SAVE APP), Q3 (does the bottom panel also host R4's
-status panel), Q4 (relationships inside the Devices panel) and Q11 (add `LOOP`, so
-that `stop` can be demonstrated at all).
+Open questions: none blocking. Still needed from the user, both from D1:
+a capture of the real Atlas tweets (`mosquitto_sub -h <pi> -t '/Atlas/#' -v`)
+for plan step 1, and hardware access for step 11.
 
-Known issues: `PLAN.md` §5.2 lists the Atlas tweet fields as read from the middleware
-source, **not** from a live capture — they must be confirmed on real hardware before
-`gateway-atlas.js` is trusted. Issues inherited from Lab 4 and still to fix are listed
-in `README.md` §4 (notably: `main.cpp` does not compile as uploaded, the servo/fan
-constants disagree between files, and the IoT-DDL has no order-based or
-condition-based relationship yet — only `interfere`).
+Known issues:
+- `PLAN.md` §5.2 and `docs/tweets.md` describe the tweets as read from the Lab 4
+  middleware source, not as observed on a live space. Unconfirmed.
+- The real IoT-DDL declares only `interfere` relationships; the order-based and
+  condition-based ones the assignment needs exist only in the simulator so far.
+- `public/dev/probe.html` is a development aid, not a feature; it is served
+  because it has to run in the browser.
