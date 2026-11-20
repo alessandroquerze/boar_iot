@@ -273,6 +273,10 @@ button:disabled { opacity: 0.4; cursor: default; }
 .group[data-open="false"] .twisty { transform: rotate(0deg); }
 .twisty { transform: rotate(90deg); transition: transform 0.1s; color: var(--fg-dim); }
 
+.mono { font-family: var(--mono); font-size: 11.5px; }
+.row.service { cursor: grab; }
+.row.service:active { cursor: grabbing; }
+
 .sub { padding-left: 28px; }
 .sub-head {
   padding: 4px 8px 2px 22px;

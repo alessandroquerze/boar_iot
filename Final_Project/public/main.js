@@ -3,6 +3,7 @@
 // Events. Project tabs and the menu actions arrive in plan steps 8 and 9.
 
 import { initBottomPanel, onBottomClear, render, setCount } from "./bottom-panel.js";
+import { initDevicesPanel } from "./panel-devices.js";
 
 /** The space model as last pushed by the server. */
 export let space = { space: {}, things: [] };
@@ -40,7 +41,10 @@ function initActivityBar() {
     }
   });
 
-  bar.querySelector('.activity[data-panel="apps"]').click();
+  // ?panel=devices opens straight into a panel, which is handy for a demo.
+  const wanted = new URLSearchParams(location.search).get("panel") ?? "apps";
+  (bar.querySelector(`.activity[data-panel="${wanted}"]`) ??
+    bar.querySelector('.activity[data-panel="apps"]')).click();
 }
 
 // --------------------------------------------------------------------- meta bar
@@ -114,6 +118,7 @@ function connect() {
 
 initActivityBar();
 initBottomPanel();
+initDevicesPanel();
 onBottomClear(() => render("console", []));
 
 render("console", [{ kind: "dim", what: "no project open." }]);

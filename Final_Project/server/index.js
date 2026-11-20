@@ -10,6 +10,10 @@ import { readFile } from "node:fs/promises";
 import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createAtlasGateway } from "./gateway-atlas.js";
+import { createSimGateway } from "./gateway-sim.js";
+import { Space } from "./space.js";
+
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const publicDir = join(root, "public");
 
@@ -45,20 +49,24 @@ function lanAddress() {
   return "localhost";
 }
 
-// --- the space model (filled in by the gateways, plan step 4) --------------
+// --- the space, and the gateway that fills it ------------------------------
 
 const config = parseArgs(process.argv.slice(2));
-const state = {
-  space: {
-    id: "BoarSmartSpace",
-    ideAddress: `http://${lanAddress()}:${config.port}`,
-    broker: config.simulate ? "simulated" : "disconnected",
-    // "scanning" freezes the IDE behind the start-up overlay; nothing can be
-    // scanned until a gateway exists (plan step 4), so start out ready.
-    discovery: "ready",
-  },
-  things: [],
-};
+
+const space = new Space({
+  id: "BoarSmartSpace",
+  ideAddress: `http://${lanAddress()}:${config.port}`,
+});
+
+// Discovery runs here, in the server process, independent of any browser — the
+// background scan the guidelines ask for.
+const gateway = config.simulate
+  ? createSimGateway({ onTweet: (tweet) => space.applyTweet(tweet) })
+  : createAtlasGateway({
+      broker: config.broker,
+      onTweet: (tweet) => space.applyTweet(tweet),
+      onStatus: (status) => space.setBroker(status),
+    });
 
 // --- Server-Sent Events ----------------------------------------------------
 
@@ -75,7 +83,7 @@ function openEventStream(response) {
     "cache-control": "no-cache",
     connection: "keep-alive",
   });
-  response.write(`event: state\ndata: ${JSON.stringify(state)}\n\n`);
+  response.write(`event: state\ndata: ${JSON.stringify(space.toJSON())}\n\n`);
   clients.add(response);
   response.on("close", () => clients.delete(response));
 }
@@ -125,7 +133,7 @@ const server = createServer(async (request, response) => {
   const route = `${request.method} ${url.pathname}`;
 
   try {
-    if (route === "GET /api/state") return send(response, 200, state);
+    if (route === "GET /api/state") return send(response, 200, space.toJSON());
     if (route === "GET /api/events") return openEventStream(response);
     if (request.method === "GET") return await serveStatic(url.pathname, response);
     send(response, 404, `no route for ${route}`);
@@ -136,9 +144,26 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(config.port, "0.0.0.0", () => {
-  console.log(`Atlas IoT IDE on ${state.space.ideAddress}`);
+  console.log(`Atlas IoT IDE on ${space.ideAddress}`);
   console.log(`  apps directory  ${config.appsDir}`);
   console.log(`  space           ${config.simulate ? "simulated" : `broker ${config.broker}`}`);
+
+  // Only start listening to the space once the IDE can be reached, so the
+  // start-up scan and the overlay that goes with it line up.
+  space.on("change", (state) => broadcast("state", state));
+  if (config.simulate) space.setBroker("simulated");
+  space.startScanning();
+  gateway.start();
 });
 
-export { broadcast, config, state };
+function shutdown() {
+  gateway.stop();
+  space.stop();
+  server.close();
+  process.exit(0);
+}
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+
+export { broadcast, config, gateway, space };
