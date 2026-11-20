@@ -1,0 +1,89 @@
+// Grammar of the Atlas app composition language — the Lab 4 mini-IDE syntax.
+// Compiled to lang/iot.parser.js by `npm run build`.
+//
+// The three app types the assignment asks for:
+//   Type 1  a sequence of calls, one statement after another
+//   Type 2  RUN a() THEN b()                 — b runs only if a succeeded
+//   Type 3  IF a() > 28 DO b() ELSE c() END  — b runs on a's return value
+// plus LOOP EVERY <n>s … END, so that an app can be long enough to stop.
+//
+// Statements are self-delimiting (a call ends at its ")", an IF at its END), so
+// line breaks carry no meaning: indentation and blank lines are free, exactly as
+// in Lab 4.
+
+@top Program { statement* }
+
+@skip { space | LineComment }
+
+statement {
+  RunStatement |
+  IfStatement |
+  LoopStatement |
+  CallStatement
+}
+
+// A bare RUN is a valid one-call program; THEN is what makes it order-based.
+RunStatement { kwRun Call (kwThen Call)* }
+
+IfStatement { kwIf Condition kwDo Block (kwElse Block)? kwEnd }
+
+LoopStatement { kwLoop kwEvery Duration Block kwEnd }
+
+// Commands inside a branch need no RUN.
+CallStatement { Call }
+
+Block { statement* }
+
+// Conditions are a flat list; AND binds tighter than OR, which the AST builder
+// applies when it groups them. There are no parentheses — nest an IF to group.
+Condition { Predicate (LogicOp Predicate)* }
+
+Predicate { Call CompareOp Number }
+
+Call { (ThingName ".")? ServiceName ArgList }
+
+ThingName { identifier }
+ServiceName { identifier }
+Alias { identifier }
+
+ArgList { "(" (Argument ("," Argument)*)? ")" }
+
+Argument { Number | Alias }
+
+LogicOp { kwAnd | kwOr }
+
+// Keywords are taken out of `identifier`, which is what reserves them: a service
+// may not be called RUN. Both all-upper and all-lower spelling are accepted,
+// as in Lab 4; the printer always writes them upper case.
+kwRun   { @specialize[@name=RUN]<identifier, "RUN"> | @specialize[@name=RUN]<identifier, "run"> }
+kwThen  { @specialize[@name=THEN]<identifier, "THEN"> | @specialize[@name=THEN]<identifier, "then"> }
+kwIf    { @specialize[@name=IF]<identifier, "IF"> | @specialize[@name=IF]<identifier, "if"> }
+kwDo    { @specialize[@name=DO]<identifier, "DO"> | @specialize[@name=DO]<identifier, "do"> }
+kwElse  { @specialize[@name=ELSE]<identifier, "ELSE"> | @specialize[@name=ELSE]<identifier, "else"> }
+kwEnd   { @specialize[@name=END]<identifier, "END"> | @specialize[@name=END]<identifier, "end"> }
+kwLoop  { @specialize[@name=LOOP]<identifier, "LOOP"> | @specialize[@name=LOOP]<identifier, "loop"> }
+kwEvery { @specialize[@name=EVERY]<identifier, "EVERY"> | @specialize[@name=EVERY]<identifier, "every"> }
+kwAnd   { @specialize[@name=AND]<identifier, "AND"> | @specialize[@name=AND]<identifier, "and"> }
+kwOr    { @specialize[@name=OR]<identifier, "OR"> | @specialize[@name=OR]<identifier, "or"> }
+
+@tokens {
+  identifier { $[A-Za-z_] $[A-Za-z0-9_]* }
+
+  Number { "-"? @digit+ }
+
+  // "5s" must win over the Number "5" followed by an identifier "s".
+  Duration { @digit+ "s" }
+
+  CompareOp { ">=" | "<=" | "==" | "!=" | ">" | "<" }
+
+  LineComment { "//" ![\n]* }
+
+  space { $[ \t\r\n]+ }
+
+  "(" ")" "," "."
+
+  @precedence { LineComment, CompareOp }
+  @precedence { Duration, Number, identifier }
+}
+
+@detectDelim
