@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Atlas IoT IDE</title>
+  <link rel="stylesheet" href="vendor/drawflow.min.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- Icons are defined once and referenced with <use>, so nothing is fetched at
+     runtime and the markup below stays readable. -->
+<svg id="icon-defs" aria-hidden="true">
+  <defs>
+    <g id="i-apps" fill="none" stroke="currentColor" stroke-width="1.4">
+      <rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1" />
+      <rect x="11" y="2.5" width="5.5" height="5.5" rx="1" />
+      <rect x="2.5" y="11" width="5.5" height="5.5" rx="1" />
+      <rect x="11" y="11" width="5.5" height="5.5" rx="1" />
+    </g>
+    <g id="i-devices" fill="none" stroke="currentColor" stroke-width="1.4">
+      <rect x="5.5" y="5.5" width="8" height="8" rx="1.2" />
+      <path d="M8 2.5v3M11 2.5v3M8 13.5v3M11 13.5v3M2.5 8h3M2.5 11h3M13.5 8h3M13.5 11h3" />
+    </g>
+    <g id="i-settings" fill="none" stroke="currentColor" stroke-width="1.4">
+      <circle cx="9.5" cy="9.5" r="2.6" />
+      <path d="M9.5 2v2.2M9.5 14.8V17M2 9.5h2.2M14.8 9.5H17M4.2 4.2l1.6 1.6M13.2 13.2l1.6 1.6M14.8 4.2l-1.6 1.6M5.8 13.2l-1.6 1.6" />
+    </g>
+    <g id="i-globe" fill="none" stroke="currentColor" stroke-width="1.2">
+      <circle cx="8" cy="8" r="5.6" />
+      <path d="M2.4 8h11.2M8 2.4c1.6 1.6 2.4 3.6 2.4 5.6S9.6 12 8 13.6C6.4 12 5.6 10 5.6 8S6.4 4 8 2.4z" />
+    </g>
+    <g id="i-chevron" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M5 3.5L10 8l-5 4.5" />
+    </g>
+    <g id="i-close" fill="none" stroke="currentColor" stroke-width="1.4">
+      <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
+    </g>
+    <g id="i-add" fill="none" stroke="currentColor" stroke-width="1.4">
+      <path d="M8 3v10M3 8h10" />
+    </g>
+  </defs>
+</svg>
+
+<!-- Menu bar: the four app actions, plus the space meta information where VS Code
+     puts its search box. -->
+<header id="titlebar">
+  <span class="brand">atlas ide</span>
+
+  <nav id="menubar" aria-label="App actions">
+    <button class="menu-action" data-action="activate" disabled>activate</button>
+    <button class="menu-action" data-action="update" disabled>update</button>
+    <button class="menu-action" data-action="stop" disabled>stop</button>
+    <button class="menu-action" data-action="delete" disabled>delete</button>
+  </nav>
+
+  <div id="metabar" title="Space meta information">
+    <svg class="icon" width="16" height="16"><use href="#i-globe" /></svg>
+    <span id="meta-address">…</span>
+    <span class="meta-sep">·</span>
+    <span id="meta-space">…</span>
+    <span class="pill" id="meta-broker" data-kind="unknown">broker: …</span>
+    <span class="pill" id="meta-discovery" data-kind="unknown">discovery: …</span>
+  </div>
+</header>
+
+<div id="workbench">
+
+  <!-- Activity bar: the two panels the prompt asks for, plus settings. -->
+  <nav id="activitybar" aria-label="Side panels">
+    <button class="activity" data-panel="apps" aria-label="Apps" title="Apps">
+      <svg class="icon" width="19" height="19"><use href="#i-apps" /></svg>
+    </button>
+    <button class="activity" data-panel="devices" aria-label="Devices" title="Devices">
+      <svg class="icon" width="19" height="19"><use href="#i-devices" /></svg>
+    </button>
+    <span class="activity-spacer"></span>
+    <button class="activity" data-panel="settings" aria-label="Settings" title="Settings">
+      <svg class="icon" width="19" height="19"><use href="#i-settings" /></svg>
+    </button>
+  </nav>
+
+  <aside id="sidebar">
+    <section class="panel" data-panel="apps">
+      <div class="panel-title">
+        <span>apps</span>
+        <span class="panel-actions">
+          <button id="app-new" class="icon-btn" title="New app">
+            <svg class="icon" width="16" height="16"><use href="#i-add" /></svg>
+          </button>
+        </span>
+      </div>
+      <div class="panel-body" id="apps-list"></div>
+      <div class="panel-footer">
+        <button id="app-finalize" class="small-btn" disabled>finalize</button>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="devices" hidden>
+      <div class="panel-title"><span>devices</span></div>
+      <div class="panel-body" id="devices-list"></div>
+    </section>
+
+    <section class="panel" data-panel="settings" hidden>
+      <div class="panel-title"><span>settings</span></div>
+      <div class="panel-body" id="settings-form"></div>
+    </section>
+  </aside>
+
+  <main id="editorarea">
+    <div id="tabbar" role="tablist" aria-label="Open projects"></div>
+
+    <div id="editors" class="no-project">
+      <!-- Main editor area: the graphical editor. -->
+      <section id="graph-pane" aria-label="Graphical editor">
+        <div id="graph-toolbar">
+          <button class="small-btn" id="graph-clear" disabled>clear</button>
+          <span class="toolbar-sep"></span>
+          <button class="icon-btn" id="graph-zoom-out" title="Zoom out">−</button>
+          <button class="icon-btn" id="graph-zoom-reset" title="Reset zoom">⊙</button>
+          <button class="icon-btn" id="graph-zoom-in" title="Zoom in">+</button>
+          <span class="toolbar-hint" id="graph-hint"></span>
+        </div>
+        <div id="drawflow"></div>
+        <div id="graph-lock" hidden>
+          <div class="lock-note">
+            <strong>locked while you edit the text</strong>
+            <span>apply or discard the changes to unlock the graph</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right panel: the text editor, with Apply Changes above it. -->
+      <section id="text-pane" aria-label="Text editor">
+        <div id="text-toolbar">
+          <button class="small-btn primary" id="text-apply" disabled>Apply Changes</button>
+          <button class="small-btn" id="text-discard" disabled>Discard</button>
+          <span class="toolbar-hint" id="text-hint">in sync with the graph</span>
+        </div>
+        <div id="editor-host"></div>
+      </section>
+
+      <div id="editors-empty">
+        <p>no project open</p>
+        <p class="dim">double-click an app in the <strong>apps</strong> panel, or create a new one</p>
+      </div>
+    </div>
+
+    <!-- Bottom panel, spanning both editors. -->
+    <section id="bottom-panel" aria-label="Console">
+      <div id="bottom-tabs" role="tablist">
+        <button class="bottom-tab" data-tab="console" role="tab">console</button>
+        <button class="bottom-tab" data-tab="output" role="tab">output</button>
+        <button class="bottom-tab" data-tab="status" role="tab">status</button>
+        <span class="bottom-actions">
+          <button class="icon-btn" id="bottom-clear" title="Clear">⌫</button>
+          <button class="icon-btn" id="bottom-toggle" title="Collapse panel">⌄</button>
+        </span>
+      </div>
+      <div class="bottom-body" data-tab="console" id="console-body"></div>
+      <div class="bottom-body" data-tab="output" id="output-body" hidden></div>
+      <div class="bottom-body" data-tab="status" id="status-body" hidden></div>
+    </section>
+  </main>
+</div>
+
+<!-- The guidelines ask the IDE to freeze until it has heard enough tweets. -->
+<div id="startup-overlay">
+  <div class="scanner">
+    <div class="spinner"></div>
+    <p>scanning smart space…</p>
+    <p class="dim" id="startup-detail">listening for Atlas tweets</p>
+  </div>
+</div>
+
+<script src="vendor/drawflow.min.js"></script>
+<script type="module" src="main.js"></script>
+</body>
+</html>

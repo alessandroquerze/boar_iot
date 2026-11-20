@@ -1,0 +1,8 @@
+node_modules/
+
+# The Atlas working directory holds the user's own apps, not ours. The example
+# apps that ship with the IDE are force-added.
+apps/*.iot
+
+# Local settings written by the server at runtime.
+server/settings.local.json

@@ -1,4 +1,34 @@
-# Atlas IoT Application IDE — Project Plan
+# Atlas IoT Application IDE
+
+> **The plan being built is [`PLAN.md`](PLAN.md).** This file keeps the group's
+> original planning notes (§§1–12 below), which are still the reference for the
+> deliverables, the hardware and the known gaps in the Lab 4 baseline.
+
+## Running it
+
+```bash
+npm install
+npm run build     # grammar -> parser, CodeMirror -> public/vendor/editor.bundle.js
+npm test
+npm start         # prints the LAN address the IDE is reachable at
+npm start -- --simulate            # no hardware needed
+npm start -- --broker 192.168.8.189:1883 --apps ./apps
+```
+
+## Third-party open source
+
+Everything is vendored or bundled locally: the IDE makes no network request to
+anything but its own server, which matters because the lab network has no
+internet. All of it is MIT-licensed, so redistribution inside the hand-in only
+requires keeping the licence notices, which `node_modules/<pkg>/LICENSE` carries.
+
+| Library | Version | Licence | Why it is used |
+| --- | --- | --- | --- |
+| [Drawflow](https://github.com/jerosoler/Drawflow) | 0.0.60 | MIT | the drag-and-drop graphical editor; its modules give one independent canvas per open project, and `export()`/`import()` are the bridge to our AST |
+| [CodeMirror 6](https://codemirror.net/) (`@codemirror/state`, `view`, `language`, `commands`, `lint`) | 6.x | MIT | the text editor; its decorations implement the green/red change highlights and its transactions let us tell our own updates apart from the user's typing |
+| [Lezer](https://lezer.codemirror.net/) (`@lezer/lr`, `highlight`, and `generator` at build time) | 1.x | MIT | one declarative grammar gives tokenising, syntax highlighting and error nodes with exact positions — the lexical and syntactic validation, without writing a compiler |
+| [MQTT.js](https://github.com/mqttjs/MQTT.js) (`mqtt`) | 5.16.1 | MIT | the Atlas things publish their tweets over MQTT; same library family as Lab 4 |
+| [esbuild](https://esbuild.github.io/) | 0.28.2 | MIT | build only: bundles CodeMirror and `lang/` into the single `editor.bundle.js` the page loads. Not shipped at runtime |
 
 ---
 

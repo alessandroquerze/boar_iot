@@ -1,0 +1,31 @@
+{
+  "name": "atlas-iot-ide",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Visual + text IDE for composing Atlas IoT applications",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test tests/",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "mqtt": "^5.10.1"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "^6.7.1",
+    "@codemirror/language": "^6.10.8",
+    "@codemirror/lint": "^6.8.4",
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/view": "^6.36.1",
+    "@lezer/generator": "^1.7.2",
+    "@lezer/highlight": "^1.2.1",
+    "@lezer/lr": "^1.4.2",
+    "drawflow": "^0.0.60",
+    "esbuild": "^0.28.2"
+  }
+}
