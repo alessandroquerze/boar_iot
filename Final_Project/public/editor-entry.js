@@ -151,44 +151,61 @@ export function createEditor({ parent, doc = "", onUserEdit, onCursorLine }) {
   // The marks currently shown. Change highlights and diagnostics are set by
   // different parts of the IDE, so a partial update must not wipe the rest.
   let spec = { added: [], removed: [], reveal: [], ranges: [] };
+  // Swapping in another project's state produces an update with no
+  // transactions, which must not be mistaken for the user typing.
+  let swapping = false;
 
-  const view = new EditorView({
-    parent,
-    state: EditorState.create({
-      doc,
-      extensions: [
-        lineNumbers(),
-        history(),
-        drawSelection(),
-        bracketMatching(),
-        highlightActiveLine(),
-        highlightActiveLineGutter(),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
-        new LanguageSupport(iotLanguage),
-        syntaxHighlighting(highlightStyle),
-        marksField,
-        theme,
-        EditorView.lineWrapping,
-        EditorView.updateListener.of((update) => {
-          // Our own updates carry an annotation; anything else is the user
-          // typing, which is what locks the graphical editor.
-          if (update.docChanged && !update.transactions.some((t) => t.annotation(fromModel))) {
-            onUserEdit?.();
-          }
-          if (update.selectionSet || update.docChanged) {
-            const line = update.state.doc.lineAt(update.state.selection.main.head).number - 1;
-            if (line !== lastLine) {
-              lastLine = line;
-              onCursorLine?.(line);
-            }
-          }
-        }),
-      ],
+  const extensions = [
+    lineNumbers(),
+    history(),
+    drawSelection(),
+    bracketMatching(),
+    highlightActiveLine(),
+    highlightActiveLineGutter(),
+    keymap.of([...defaultKeymap, ...historyKeymap]),
+    new LanguageSupport(iotLanguage),
+    syntaxHighlighting(highlightStyle),
+    marksField,
+    theme,
+    EditorView.lineWrapping,
+    EditorView.updateListener.of((update) => {
+      // Our own updates carry an annotation; anything else is the user
+      // typing, which is what locks the graphical editor.
+      if (
+        update.docChanged &&
+        !swapping &&
+        update.transactions.length > 0 &&
+        !update.transactions.some((t) => t.annotation(fromModel))
+      ) {
+        onUserEdit?.();
+      }
+      if (update.selectionSet || update.docChanged) {
+        const line = update.state.doc.lineAt(update.state.selection.main.head).number - 1;
+        if (line !== lastLine) {
+          lastLine = line;
+          onCursorLine?.(line);
+        }
+      }
     }),
-  });
+  ];
+
+  const view = new EditorView({ parent, state: EditorState.create({ doc, extensions }) });
 
   const api = {
     view,
+
+    /**
+     * A fresh state for a project. Each open project keeps its own, so its
+     * text, selection and undo history stay independent of the other tabs'.
+     */
+    newState: (text) => EditorState.create({ doc: text, extensions }),
+    state: () => view.state,
+    useState(state) {
+      spec = { added: [], removed: [], reveal: [], ranges: [] };
+      swapping = true;
+      view.setState(state);
+      swapping = false;
+    },
 
     getText: () => view.state.doc.toString(),
 

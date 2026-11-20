@@ -50,20 +50,25 @@ export function setCatalogue(space) {
   if (current) showDiagnostics(current, validate(editor.getText(), { catalogue }));
 }
 
-/** Show a project, or nothing when every tab is closed. */
+/**
+ * Show a project, or nothing when every tab is closed. Each project keeps its
+ * own editor state, so its unapplied text, its selection and its undo history
+ * survive a trip through another tab.
+ */
 export function showProject(project) {
   clearPending();
+  if (current) current.editorState = editor.state();
   current = project;
+
   if (!project) {
-    editor.setText("");
-    editor.clearMarks();
+    editor.useState(editor.newState(""));
     updateToolbar();
     return;
   }
 
-  editor.setText(project.text);
-  editor.clearMarks();
-  showDiagnostics(project, validate(project.text, { catalogue }));
+  project.editorState ??= editor.newState(project.text);
+  editor.useState(project.editorState);
+  showDiagnostics(project, validate(editor.getText(), { catalogue }));
   updateToolbar();
 }
 
@@ -181,6 +186,7 @@ function applyChanges() {
   // Printing normalises spacing, so show the text the model actually holds.
   editor.setText(project.text);
   project.editingText = false;
+  markDirty(project, project.text !== project.savedText);
   applyHandler(project);
   setHint("applied to the graph", "ok");
   updateToolbar();
@@ -195,7 +201,8 @@ function discardChanges() {
   editor.setText(project.text);
   editor.clearMarks();
   project.editingText = false;
-  markDirty(project, true);
+  // Back to the saved model: there may be nothing left to save.
+  markDirty(project, project.text !== project.savedText);
   showDiagnostics(project, validate(project.text, { catalogue }));
   setHint("changes discarded", "");
   updateToolbar();

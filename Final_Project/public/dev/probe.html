@@ -18,7 +18,11 @@
     google-chrome --headless=new --virtual-time-budget=8000 --dump-dom \
       'http://localhost:7000/dev/probe.html?s=lock'
 
-  Scenarios:  lock | remove | add | invalid | apply
+  Scenarios:  lock | remove | add | invalid | apply | tabs | newtab
+  Add &n=<k> to stop a scenario after k steps, and &prev=1 to print the last
+  run's breadcrumbs instead of running: a page that never settles is never
+  dumped, so every line is also written to localStorage as it is produced.
+
   Under a virtual-time budget every timer fires at once, so each step records
   what it sees immediately after acting, before the timers that follow it run.
 -->
@@ -30,10 +34,20 @@ const scenario = new URLSearchParams(location.search).get("s") ?? "lock";
 const frame = document.getElementById("ide");
 const lines = [];
 
+// Breadcrumbs are also kept in localStorage, so a run that never settles (and
+// so is never dumped) can still be read back by the next run with ?prev=1.
 const say = (text) => {
   lines.push(text);
   document.getElementById("report").textContent = lines.join("\n");
+  try {
+    localStorage.setItem("probe-log", lines.join("\n"));
+  } catch {}
 };
+
+if (new URLSearchParams(location.search).has("prev")) {
+  document.getElementById("report").textContent =
+    `previous run:\n${localStorage.getItem("probe-log") ?? "(nothing)"}`;
+}
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -161,6 +175,65 @@ const SCENARIOS = {
     say(`console: ${consoleLines().join(" | ")}`);
   },
 
+  // Minimal bisect helper: does opening a second project settle at all?
+  async newtab() {
+    say(`tabs before: ${doc().querySelectorAll("#tabbar .tab").length}`);
+    doc().getElementById("app-new").click();
+    await wait(50);
+    say(`tabs after: ${doc().querySelectorAll("#tabbar .tab").length}`);
+    say(`blocks: ${blockCount()} locked: ${locked()}`);
+  },
+
+  // Each step runs only if ?n= allows it, so a hang can be bisected.
+  async tabs() {
+    const limit = Number(new URLSearchParams(location.search).get("n") ?? 99);
+    const tabs = () => [...doc().querySelectorAll("#tabbar .tab")];
+    const selected = () => tabs().findIndex((tab) => tab.getAttribute("aria-selected") === "true");
+
+    const steps = [
+      async () => {
+        doc().getElementById("app-new").click();
+        await wait(50);
+        say(`tabs: ${tabs().map((tab) => tab.textContent.trim()).join(", ")} (active ${selected()})`);
+        say(`new project is empty: ${text() === ""}`);
+      },
+      async () => {
+        typeInto(doc().querySelector(".cm-content"), "RUN Fan_Off()");
+        await wait(50);
+        say(`project 2 locked: ${locked()} dirty: ${tabs()[1].dataset.dirty}`);
+      },
+      async () => {
+        tabs()[0].click();
+        await wait(100);
+        say(`switched to 1 — locked: ${locked()} blocks: ${blockCount()} dirty: ${tabs()[0].dataset.dirty}`);
+        say(`project 1 line 1: ${JSON.stringify(text().split("\n")[0])}`);
+      },
+      async () => {
+        tabs()[1].click();
+        await wait(100);
+        say(`back to 2 — locked: ${locked()} blocks: ${blockCount()}`);
+        say(`project 2 text kept: ${JSON.stringify(text())}`);
+      },
+      async () => {
+        // Discard first: closing a dirty tab asks for confirmation, and a
+        // headless browser has nobody to answer it.
+        doc().getElementById("text-discard").click();
+        await wait(50);
+        say(`after discard: locked=${locked()} dirty=${tabs()[1].dataset.dirty} text=${JSON.stringify(text())}`);
+
+        tabs()[1].querySelector(".tab-close").click();
+        await wait(100);
+        say(`after closing 2: tabs=${tabs().length} active=${selected()} blocks=${blockCount()}`);
+        say(`text now: ${JSON.stringify(text().split("\n")[0])}`);
+      },
+    ];
+
+    for (let i = 0; i < Math.min(limit, steps.length); i++) {
+      say(`-- step ${i + 1}`);
+      await steps[i]();
+    }
+  },
+
   async apply() {
     const content = doc().querySelector(".cm-content");
     typeInto(content, "RUN  AT_BoarAirSensor.Window_Close()\n");
@@ -175,6 +248,8 @@ const SCENARIOS = {
 };
 
 frame.addEventListener("load", async () => {
+  if (new URLSearchParams(location.search).has("prev")) return;
+
   const ready = await until(() => doc().querySelector(".cm-content") && blockCount() > 2);
   if (!ready) return say("! the IDE did not finish loading");
 

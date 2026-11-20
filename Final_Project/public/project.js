@@ -52,6 +52,8 @@ export function createProject({ name = "untitled", path = null, source = "", lay
     // Set while the user is editing the text: the graph stays locked until the
     // changes are applied or discarded.
     editingText: false,
+    // This project's CodeMirror state, kept while another tab is in front.
+    editorState: null,
     dirty: false,
     savedText: "",
     console: [],
@@ -96,14 +98,17 @@ export function setAst(project, ast) {
   project.ast = ast;
   const before = project.text;
   reprint(project);
-  if (project.text !== before) markDirty(project, true);
+  if (project.text !== before) markDirty(project, project.text !== project.savedText);
   return project.text;
 }
 
+/**
+ * Mark a project as having changes that are not on disk. Typing counts even
+ * before the changes are applied, so the tab's dot appears straight away.
+ */
 export function markDirty(project, dirty = true) {
-  const next = dirty && project.text !== project.savedText;
-  if (project.dirty === next) return;
-  project.dirty = next;
+  if (project.dirty === dirty) return;
+  project.dirty = dirty;
   notifyProjectsChanged();
 }
 
