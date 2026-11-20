@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { AppStore, nameError } from "./apps.js";
 import { createAtlasGateway } from "./gateway-atlas.js";
 import { createSimGateway } from "./gateway-sim.js";
+import { RunManager } from "./runtime.js";
 import { Space } from "./space.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -73,6 +74,15 @@ const gateway = config.simulate
 // The Atlas working directory, scanned when the IDE starts.
 const apps = new AppStore(config.appsDir);
 
+// Runs live here, not in the browser, so activate/stop/Completed are a real
+// life cycle and the status panel is empty every time the IDE starts.
+const runs = new RunManager({
+  gateway,
+  space,
+  onChange: (list) => broadcast("runs", list),
+  onLog: (line) => broadcast("log", line),
+});
+
 // --- Server-Sent Events ----------------------------------------------------
 
 const clients = new Set();
@@ -89,6 +99,7 @@ function openEventStream(response) {
     connection: "keep-alive",
   });
   response.write(`event: state\ndata: ${JSON.stringify(space.toJSON())}\n\n`);
+  response.write(`event: runs\ndata: ${JSON.stringify(runs.list())}\n\n`);
   clients.add(response);
   response.on("close", () => clients.delete(response));
 }
@@ -165,6 +176,21 @@ const server = createServer(async (request, response) => {
     }
 
     if (route === "GET /api/apps") return send(response, 200, await apps.list());
+    if (route === "GET /api/runs") return send(response, 200, runs.list());
+
+    const stopRoute = /^\/api\/runs\/([^/]+)\/stop$/.exec(url.pathname);
+    if (stopRoute && request.method === "POST") {
+      const { error } = runs.stop(stopRoute[1]);
+      return send(response, error ? 409 : 200, error ? { error } : runs.list());
+    }
+
+    const activateRoute = /^\/api\/apps\/(.+)\/activate$/.exec(url.pathname);
+    if (activateRoute && request.method === "POST") {
+      const file = decodeURIComponent(activateRoute[1]);
+      const app = await apps.read(file);
+      const { error, run } = runs.activate({ file: app.file, name: app.name, source: app.source });
+      return send(response, error ? 409 : 200, error ? { error } : run && { id: run.id });
+    }
 
     const appRoute = /^\/api\/apps\/(.+)$/.exec(url.pathname);
     if (appRoute) {
@@ -212,6 +238,7 @@ server.listen(config.port, "0.0.0.0", () => {
 });
 
 function shutdown() {
+  runs.stopAll();
   gateway.stop();
   space.stop();
   server.close();

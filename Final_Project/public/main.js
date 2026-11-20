@@ -2,8 +2,8 @@
 // bar, bottom panel, start-up overlay — connects the two editors to each other,
 // and keeps the space model up to date over Server-Sent Events.
 
-import { initBottomPanel, onBottomClear, render, setCount } from "./bottom-panel.js";
-import { deleteActive, initAppsPanel, saveActive, setApps } from "./panel-apps.js";
+import { append, initBottomPanel, onBottomClear, render, setCount, showTab } from "./bottom-panel.js";
+import { deleteActive, initAppsPanel, saveActive, setApps, setRuns } from "./panel-apps.js";
 import { initDevicesPanel } from "./panel-devices.js";
 import { initSettingsPanel } from "./settings.js";
 import {
@@ -87,7 +87,6 @@ function renderTabs() {
     showProject(project);
     showProjectGraph(project);
     render("console", project?.console ?? [{ kind: "dim", what: "no project open." }]);
-    render("output", project?.output ?? [{ kind: "dim", what: "nothing has run yet." }]);
   }
 }
 
@@ -123,6 +122,43 @@ function tabElement(project) {
     }
   });
   return tab;
+}
+
+// ------------------------------------------------------- runs and the log
+
+// Runs belong to the IDE, not to a tab: the status panel lists every app that
+// is running, and the output log is shared and prefixed with the app's name.
+// Both are empty when the IDE starts, because runs live in the server process.
+let runs = [];
+
+function renderStatus() {
+  if (runs.length === 0) {
+    render("status", [{ kind: "dim", what: "no app has been activated yet." }]);
+    return;
+  }
+
+  render(
+    "status",
+    runs.map((run) => ({
+      kind: run.status === "Active" ? "ok" : run.status === "Stopped" ? "warn" : "dim",
+      where: new Date(run.startedAt).toLocaleTimeString(),
+      what: `${run.name}  ${run.status.toLowerCase()}`,
+      action: {
+        label: "stop",
+        // An app that ended on its own cannot be stopped.
+        disabled: run.status !== "Active",
+        onClick: () => fetch(`/api/runs/${run.id}/stop`, { method: "POST" }),
+      },
+    })),
+  );
+}
+
+function appendLog(line) {
+  append("output", {
+    kind: { call: "dim", other: "dim", fail: "error" }[line.kind] ?? line.kind,
+    where: line.app,
+    what: `${"  ".repeat(line.depth ?? 0)}${line.text}`,
+  });
 }
 
 // --------------------------------------------------------------------- meta bar
@@ -190,19 +226,52 @@ function applyState(next) {
 }
 
 function connect() {
-  // ?live=0 keeps the page from holding a stream open, which is what the
-  // development probe in public/dev/ needs to be able to settle.
-  if (new URLSearchParams(location.search).get("live") === "0") return;
+  // ?live=0 swaps the stream for polling. An open stream never completes, and
+  // the development probe in public/dev/ cannot measure a page that never
+  // settles; it is also a reasonable fallback if a proxy eats the stream.
+  if (new URLSearchParams(location.search).get("live") === "0") return poll();
 
   const events = new EventSource("/api/events");
 
   events.addEventListener("state", (event) => applyState(JSON.parse(event.data)));
   events.addEventListener("apps", (event) => setApps(JSON.parse(event.data)));
+  events.addEventListener("runs", (event) => {
+    runs = JSON.parse(event.data);
+    setRuns(runs);
+    renderStatus();
+  });
+  events.addEventListener("log", (event) => appendLog(JSON.parse(event.data)));
 
   events.addEventListener("error", () => {
     // EventSource retries on its own; just say so in the meta bar.
     setPill("meta-broker", "broker: ide offline", "error");
   });
+}
+
+function poll() {
+  const seen = { state: "", runs: "" };
+
+  setInterval(async () => {
+    try {
+      const [state, runList] = await Promise.all([
+        (await fetch("/api/state")).json(),
+        (await fetch("/api/runs")).json(),
+      ]);
+
+      if (JSON.stringify(state) !== seen.state) {
+        seen.state = JSON.stringify(state);
+        applyState(state);
+      }
+      if (JSON.stringify(runList) !== seen.runs) {
+        seen.runs = JSON.stringify(runList);
+        runs = runList;
+        setRuns(runs);
+        renderStatus();
+      }
+    } catch {
+      setPill("meta-broker", "broker: ide offline", "error");
+    }
+  }, 400);
 }
 
 // ------------------------------------------------------------------- bootstrap
@@ -222,9 +291,45 @@ initAppsPanel();
 const MENU_ACTIONS = {
   update: () => saveActive(),
   delete: () => deleteActive(),
-  activate: () => render("status", [{ kind: "dim", what: "activate arrives with the runtime." }]),
-  stop: () => render("status", [{ kind: "dim", what: "stop arrives with the runtime." }]),
+  activate: activateActive,
+  stop: stopActive,
 };
+
+/** ACTIVATE: the app has to be on disk first, because the server runs the file. */
+async function activateActive() {
+  const project = activeProject();
+  if (!project) return;
+
+  if (!project.path || project.dirty) {
+    const saved = await saveActive();
+    if (!saved) return;
+  }
+
+  const response = await fetch(`/api/apps/${encodeURIComponent(project.path)}/activate`, {
+    method: "POST",
+  });
+  const result = await response.json();
+
+  showTab(response.ok ? "output" : "status");
+  if (!response.ok) render("status", [{ kind: "error", what: result.error }]);
+}
+
+/** STOP: end the activation of the app in front. */
+async function stopActive() {
+  const project = activeProject();
+  const run = runs.find((candidate) => candidate.file === project?.path && candidate.status === "Active");
+
+  if (!run) {
+    showTab("status");
+    render("status", [
+      ...runs.map((other) => ({ kind: "dim", what: `${other.name} is ${other.status.toLowerCase()}` })),
+      { kind: "error", what: `${project?.name ?? "this app"} is not running.` },
+    ]);
+    return;
+  }
+  await fetch(`/api/runs/${run.id}/stop`, { method: "POST" });
+  showTab("status");
+}
 
 document.getElementById("menubar").addEventListener("click", (event) => {
   const action = event.target.closest(".menu-action");
@@ -235,8 +340,7 @@ document.getElementById("graph-add-condition").addEventListener("click", () => a
 document.getElementById("graph-add-loop").addEventListener("click", () => addControlBlock("loop"));
 
 onBottomClear((tab) => {
-  const project = activeProject();
-  if (project && tab === "output") project.output = [];
+  if (tab === "status") return renderStatus();
   render(tab, []);
 });
 
@@ -246,7 +350,8 @@ document.getElementById("app-new").addEventListener("click", () => {
 });
 
 onProjectsChange(renderTabs);
-render("status", [{ kind: "dim", what: "no app is running." }]);
+render("output", [{ kind: "dim", what: "nothing has run yet." }]);
+renderStatus();
 setCount("console", 0);
 
 // Open something straight away, for screenshots and for the live demo:

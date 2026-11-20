@@ -43,7 +43,7 @@ export function onBottomClear(handler) {
   onClear = handler;
 }
 
-/** Replace a tab's content. A line is { kind, where, what, reveal? }. */
+/** Replace a tab's content. A line is { kind, where, what, reveal?, action? }. */
 export function render(tab, lines) {
   const host = el[tab];
   host.replaceChildren(...lines.map(lineElement));
@@ -88,5 +88,14 @@ function lineElement(line) {
   what.className = "what";
   what.textContent = line.what;
   row.appendChild(what);
+
+  if (line.action) {
+    const button = document.createElement("button");
+    button.className = "small-btn line-action";
+    button.textContent = line.action.label;
+    button.disabled = Boolean(line.action.disabled);
+    button.addEventListener("click", line.action.onClick);
+    row.appendChild(button);
+  }
   return row;
 }

@@ -617,6 +617,8 @@ button:disabled { opacity: 0.4; cursor: default; }
 .line[data-kind="ok"] .what    { color: var(--ok); }
 .line[data-kind="info"] .what  { color: var(--fg); }
 .line[data-kind="dim"] .what   { color: var(--fg-dim); }
+.line .what { flex: 1; }
+.line-action { margin-left: auto; padding: 0 8px; font-size: 11px; }
 
 /* --------------------------------------------------------- startup overlay */
 
