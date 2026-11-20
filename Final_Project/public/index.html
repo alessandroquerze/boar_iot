@@ -174,7 +174,10 @@
   </div>
 </div>
 
+<!-- Classic scripts run before module scripts, so window.AtlasEditor and
+     window.Drawflow exist by the time main.js starts. -->
 <script src="vendor/drawflow.min.js"></script>
+<script src="vendor/editor.bundle.js"></script>
 <script type="module" src="main.js"></script>
 </body>
 </html>

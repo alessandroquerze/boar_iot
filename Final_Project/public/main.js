@@ -4,6 +4,15 @@
 
 import { initBottomPanel, onBottomClear, render, setCount } from "./bottom-panel.js";
 import { initDevicesPanel } from "./panel-devices.js";
+import {
+  activeProject,
+  closeProject,
+  createProject,
+  listProjects,
+  onProjectsChange,
+  setActiveProject,
+} from "./project.js";
+import { initTextEditor, setCatalogue, showProject } from "./text-editor.js";
 
 /** The space model as last pushed by the server. */
 export let space = { space: {}, things: [] };
@@ -45,6 +54,69 @@ function initActivityBar() {
   const wanted = new URLSearchParams(location.search).get("panel") ?? "apps";
   (bar.querySelector(`.activity[data-panel="${wanted}"]`) ??
     bar.querySelector('.activity[data-panel="apps"]')).click();
+}
+
+// ------------------------------------------------------------------- tab bar
+
+// One tab per open project, as in a VS Code multi-root workspace. Each project
+// owns its model, its editor states and its console; switching tabs swaps all
+// of it, and nothing is shared.
+let shownProjectId = null;
+
+function renderTabs() {
+  const bar = document.getElementById("tabbar");
+  bar.replaceChildren(...listProjects().map(tabElement));
+
+  const project = activeProject();
+  document.getElementById("editors").classList.toggle("no-project", !project);
+  document.getElementById("graph-clear").disabled = !project;
+
+  for (const action of document.querySelectorAll(".menu-action")) {
+    action.disabled = !project;
+  }
+
+  // Only reload the editors when the tab actually changed: this runs on every
+  // small change, including while the user is typing.
+  if ((project?.id ?? null) !== shownProjectId) {
+    shownProjectId = project?.id ?? null;
+    showProject(project);
+    render("console", project?.console ?? [{ kind: "dim", what: "no project open." }]);
+    render("output", project?.output ?? [{ kind: "dim", what: "nothing has run yet." }]);
+  }
+}
+
+function tabElement(project) {
+  const tab = document.createElement("div");
+  tab.className = "tab";
+  tab.setAttribute("role", "tab");
+  tab.setAttribute("aria-selected", String(project.id === activeProject()?.id));
+  tab.dataset.dirty = String(project.dirty);
+  tab.title = project.path ?? "not saved yet";
+
+  const name = document.createElement("span");
+  name.className = "tab-name";
+  name.textContent = project.name;
+  tab.appendChild(name);
+
+  const close = document.createElement("button");
+  close.className = "icon-btn tab-close";
+  close.title = "Close";
+  close.innerHTML = '<svg class="icon" width="13" height="13"><use href="#i-close" /></svg>';
+  close.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (project.dirty && !confirm(`${project.name} has unsaved changes. Close it anyway?`)) return;
+    closeProject(project.id);
+  });
+  tab.appendChild(close);
+
+  tab.addEventListener("click", () => setActiveProject(project.id));
+  tab.addEventListener("mousedown", (event) => {
+    if (event.button === 1) {
+      event.preventDefault();
+      closeProject(project.id);
+    }
+  });
+  return tab;
 }
 
 // --------------------------------------------------------------------- meta bar
@@ -100,6 +172,7 @@ function applyState(next) {
   space = next;
   renderMeta(next);
   renderOverlay(next);
+  setCatalogue(next);
   for (const listener of listeners) listener(next);
 }
 
@@ -119,12 +192,45 @@ function connect() {
 initActivityBar();
 initBottomPanel();
 initDevicesPanel();
-onBottomClear(() => render("console", []));
+initTextEditor({ onApply: (project) => document.dispatchEvent(new CustomEvent("atlas-text-applied", { detail: { project } })) });
 
-render("console", [{ kind: "dim", what: "no project open." }]);
-render("output", [{ kind: "dim", what: "nothing has run yet." }]);
+onBottomClear((tab) => {
+  const project = activeProject();
+  if (project && tab === "output") project.output = [];
+  render(tab, []);
+});
+
+// A new, empty app: the editors have somewhere to live before anything is
+// opened from the Apps panel.
+document.getElementById("app-new").addEventListener("click", () => {
+  createProject({ name: `untitled-${listProjects().length + 1}` });
+});
+
+onProjectsChange(renderTabs);
 render("status", [{ kind: "dim", what: "no app is running." }]);
 setCount("console", 0);
+
+// Open something straight away, for screenshots and for the live demo:
+//   ?new=1     an empty project
+//   ?sample=1  the Lab 4 Part II demo app, which this IDE must be able to rebuild
+const query = new URLSearchParams(location.search);
+if (query.has("new")) createProject({ name: "untitled-1" });
+if (query.has("sample")) {
+  createProject({
+    name: "AirControl",
+    source: [
+      "RUN  AT_BoarAirSensor.Calibrate_Sensor()",
+      "THEN AT_BoarAirSensor.Read_Temp(C)",
+      "IF   AT_BoarAirSensor.Read_Temp(C) > 24 AND AT_BoarAirSensor.Read_Humidity() > 45",
+      "DO",
+      "     AT_BoarAirSensor.Fan_On(60)",
+      "     AT_BoarAirSensor.Set_Window(40)",
+      "ELSE",
+      "     AT_BoarAirSensor.Fan_Off()",
+      "END",
+    ].join("\n"),
+  });
+}
 
 fetch("/api/state")
   .then((response) => response.json())
