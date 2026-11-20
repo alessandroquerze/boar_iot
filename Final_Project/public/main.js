@@ -3,6 +3,7 @@
 // and keeps the space model up to date over Server-Sent Events.
 
 import { initBottomPanel, onBottomClear, render, setCount } from "./bottom-panel.js";
+import { deleteActive, initAppsPanel, saveActive, setApps } from "./panel-apps.js";
 import { initDevicesPanel } from "./panel-devices.js";
 import { initSettingsPanel } from "./settings.js";
 import {
@@ -196,6 +197,7 @@ function connect() {
   const events = new EventSource("/api/events");
 
   events.addEventListener("state", (event) => applyState(JSON.parse(event.data)));
+  events.addEventListener("apps", (event) => setApps(JSON.parse(event.data)));
 
   events.addEventListener("error", () => {
     // EventSource retries on its own; just say so in the meta bar.
@@ -214,6 +216,21 @@ initSettingsPanel();
 initTextEditor({ onApply: (project) => reloadFromModel(project) });
 initGraphEditor({ onChange: (project, change) => syncFromModel(project, change) });
 
+initAppsPanel();
+
+// The menu bar: the four app actions the prompt names, in lowercase.
+const MENU_ACTIONS = {
+  update: () => saveActive(),
+  delete: () => deleteActive(),
+  activate: () => render("status", [{ kind: "dim", what: "activate arrives with the runtime." }]),
+  stop: () => render("status", [{ kind: "dim", what: "stop arrives with the runtime." }]),
+};
+
+document.getElementById("menubar").addEventListener("click", (event) => {
+  const action = event.target.closest(".menu-action");
+  if (action && !action.disabled) MENU_ACTIONS[action.dataset.action]?.();
+});
+
 document.getElementById("graph-add-condition").addEventListener("click", () => addControlBlock("condition"));
 document.getElementById("graph-add-loop").addEventListener("click", () => addControlBlock("loop"));
 
@@ -223,8 +240,7 @@ onBottomClear((tab) => {
   render(tab, []);
 });
 
-// A new, empty app: the editors have somewhere to live before anything is
-// opened from the Apps panel.
+// NEW APP: an empty project. It becomes a file the first time it is saved.
 document.getElementById("app-new").addEventListener("click", () => {
   createProject({ name: `untitled-${listProjects().length + 1}` });
 });

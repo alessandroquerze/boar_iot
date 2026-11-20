@@ -7,9 +7,10 @@
 import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
 import { readFile } from "node:fs/promises";
-import { dirname, extname, join, normalize } from "node:path";
+import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { AppStore, nameError } from "./apps.js";
 import { createAtlasGateway } from "./gateway-atlas.js";
 import { createSimGateway } from "./gateway-sim.js";
 import { Space } from "./space.js";
@@ -32,7 +33,8 @@ function parseArgs(argv) {
     if (arg === "--simulate") config.simulate = true;
     else if (arg === "--port") config.port = Number(argv[++i]);
     else if (arg === "--broker") config.broker = argv[++i];
-    else if (arg === "--apps") config.appsDir = join(process.cwd(), argv[++i]);
+    // resolve(), not join(): an absolute path must be taken as given.
+    else if (arg === "--apps") config.appsDir = resolve(process.cwd(), argv[++i]);
     else throw new Error(`unknown option: ${arg}`);
   }
   return config;
@@ -67,6 +69,9 @@ const gateway = config.simulate
       onTweet: (tweet) => space.applyTweet(tweet),
       onStatus: (status) => space.setBroker(status),
     });
+
+// The Atlas working directory, scanned when the IDE starts.
+const apps = new AppStore(config.appsDir);
 
 // --- Server-Sent Events ----------------------------------------------------
 
@@ -118,6 +123,25 @@ async function serveStatic(pathname, response) {
   }
 }
 
+/** Read a JSON request body, with a small cap so a stray request cannot grow. */
+function readJson(request) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    request.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 1_000_000) reject(new Error("request too large"));
+    });
+    request.on("end", () => {
+      try {
+        resolve(body === "" ? {} : JSON.parse(body));
+      } catch (error) {
+        reject(error);
+      }
+    });
+    request.on("error", reject);
+  });
+}
+
 function send(response, status, body) {
   const payload = typeof body === "string" ? body : JSON.stringify(body);
   response.writeHead(status, {
@@ -135,17 +159,48 @@ const server = createServer(async (request, response) => {
   try {
     if (route === "GET /api/state") return send(response, 200, space.toJSON());
     if (route === "GET /api/events") return openEventStream(response);
+
+    if (route === "GET /api/config") {
+      return send(response, 200, { appsDir: config.appsDir, simulate: config.simulate, broker: config.broker });
+    }
+
+    if (route === "GET /api/apps") return send(response, 200, await apps.list());
+
+    const appRoute = /^\/api\/apps\/(.+)$/.exec(url.pathname);
+    if (appRoute) {
+      const fileName = decodeURIComponent(appRoute[1]);
+
+      if (request.method === "GET") return send(response, 200, await apps.read(fileName));
+
+      if (request.method === "PUT") {
+        const problem = nameError(fileName);
+        if (problem) return send(response, 400, { error: problem });
+
+        const saved = await apps.write(fileName, await readJson(request));
+        broadcast("apps", await apps.list());
+        return send(response, 200, saved);
+      }
+
+      if (request.method === "DELETE") {
+        await apps.remove(fileName);
+        broadcast("apps", await apps.list());
+        return send(response, 200, { deleted: fileName });
+      }
+    }
+
     if (request.method === "GET") return await serveStatic(url.pathname, response);
     send(response, 404, `no route for ${route}`);
   } catch (error) {
+    if (error.code === "ENOENT") return send(response, 404, { error: `no such app: ${url.pathname}` });
     console.error(`${route} failed:`, error);
-    send(response, 500, String(error.message ?? error));
+    send(response, 500, { error: String(error.message ?? error) });
   }
 });
 
 server.listen(config.port, "0.0.0.0", () => {
   console.log(`Atlas IoT IDE on ${space.ideAddress}`);
   console.log(`  apps directory  ${config.appsDir}`);
+  apps.ready();
   console.log(`  space           ${config.simulate ? "simulated" : `broker ${config.broker}`}`);
 
   // Only start listening to the space once the IDE can be reached, so the

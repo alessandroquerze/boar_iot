@@ -32,6 +32,10 @@
 <script>
 const scenario = new URLSearchParams(location.search).get("s") ?? "lock";
 const frame = document.getElementById("ide");
+// Scenarios that work on the side panel need it open.
+if (new URLSearchParams(location.search).get("s") === "manager") {
+  frame.src = "/?sample=1&panel=apps&live=0";
+}
 const lines = [];
 
 // Breadcrumbs are also kept in localStorage, so a run that never settles (and
@@ -232,6 +236,31 @@ const SCENARIOS = {
       say(`-- step ${i + 1}`);
       await steps[i]();
     }
+  },
+
+  // Open an app from the working directory, change it, save it, delete it.
+  async manager() {
+    const rows = () => [...doc().querySelectorAll("#apps-list .row")];
+    say(`apps listed: ${rows().map((row) => row.textContent.trim()).join(", ")}`);
+
+    const target = rows().find((row) => row.textContent.startsWith("NightMode"));
+    target.dispatchEvent(new frame.contentWindow.MouseEvent("dblclick", { bubbles: true }));
+    await wait(300);
+    say(`tabs: ${[...doc().querySelectorAll("#tabbar .tab")].map((t) => t.textContent.trim()).join(", ")}`);
+    say(`opened text:\n${text()}`);
+    say(`blocks: ${blockCount()}`);
+
+    typeInto(doc().querySelector(".cm-content"), "  ");
+    await wait(50);
+    const tab = doc().querySelector('#tabbar .tab[aria-selected="true"]');
+    say(`dirty after typing: ${tab.dataset.dirty}`);
+
+    doc().getElementById("text-discard").click();
+    await wait(50);
+    doc().querySelector('.menu-action[data-action="update"]').click();
+    await wait(400);
+    say(`dirty after update: ${doc().querySelector('#tabbar .tab[aria-selected="true"]').dataset.dirty}`);
+    say(`finalize enabled: ${!doc().getElementById("app-finalize").disabled}`);
   },
 
   async apply() {
