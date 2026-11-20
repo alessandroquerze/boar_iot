@@ -26,6 +26,7 @@ import {
 import { styleTags, tags } from "@lezer/highlight";
 
 import { buildAst, callSignature, walk } from "../lang/ast.js";
+import { astToGraph, graphToAst, layoutOf, parseConditionText } from "../lang/graph.js";
 import { describeStatement, predicateText, printProgram } from "../lang/print.js";
 import { parser } from "../lang/iot.parser.js";
 import { catalogueFromSpace, validate } from "../lang/validate.js";
@@ -247,10 +248,14 @@ export function createEditor({ parent, doc = "", onUserEdit, onCursorLine }) {
 
 // What the rest of the IDE needs from lang/, re-exported so there is one copy.
 export {
+  astToGraph,
   buildAst,
   callSignature,
   catalogueFromSpace,
   describeStatement,
+  graphToAst,
+  layoutOf,
+  parseConditionText,
   predicateText,
   printProgram,
   validate,

@@ -1,6 +1,6 @@
-// Bootstrap: wires the workbench chrome (activity bar, meta bar, bottom panel,
-// start-up overlay) and keeps the space model up to date over Server-Sent
-// Events. Project tabs and the menu actions arrive in plan steps 8 and 9.
+// Bootstrap: wires the workbench chrome — activity bar, meta bar, project tab
+// bar, bottom panel, start-up overlay — connects the two editors to each other,
+// and keeps the space model up to date over Server-Sent Events.
 
 import { initBottomPanel, onBottomClear, render, setCount } from "./bottom-panel.js";
 import { initDevicesPanel } from "./panel-devices.js";
@@ -12,7 +12,8 @@ import {
   onProjectsChange,
   setActiveProject,
 } from "./project.js";
-import { initTextEditor, setCatalogue, showProject } from "./text-editor.js";
+import { addControlBlock, initGraphEditor, reloadFromModel, showProjectGraph } from "./graph-editor.js";
+import { initTextEditor, setCatalogue, showProject, syncFromModel } from "./text-editor.js";
 
 /** The space model as last pushed by the server. */
 export let space = { space: {}, things: [] };
@@ -69,7 +70,9 @@ function renderTabs() {
 
   const project = activeProject();
   document.getElementById("editors").classList.toggle("no-project", !project);
-  document.getElementById("graph-clear").disabled = !project;
+  for (const id of ["graph-clear", "graph-add-condition", "graph-add-loop"]) {
+    document.getElementById(id).disabled = !project;
+  }
 
   for (const action of document.querySelectorAll(".menu-action")) {
     action.disabled = !project;
@@ -80,6 +83,7 @@ function renderTabs() {
   if ((project?.id ?? null) !== shownProjectId) {
     shownProjectId = project?.id ?? null;
     showProject(project);
+    showProjectGraph(project);
     render("console", project?.console ?? [{ kind: "dim", what: "no project open." }]);
     render("output", project?.output ?? [{ kind: "dim", what: "nothing has run yet." }]);
   }
@@ -168,12 +172,19 @@ function renderOverlay(state) {
 
 // ------------------------------------------------------------------- live state
 
+let opened = false;
+
 function applyState(next) {
   space = next;
   renderMeta(next);
   renderOverlay(next);
   setCatalogue(next);
   for (const listener of listeners) listener(next);
+
+  if (!opened) {
+    opened = true;
+    openRequestedProject();
+  }
 }
 
 function connect() {
@@ -192,7 +203,13 @@ function connect() {
 initActivityBar();
 initBottomPanel();
 initDevicesPanel();
-initTextEditor({ onApply: (project) => document.dispatchEvent(new CustomEvent("atlas-text-applied", { detail: { project } })) });
+// The two editors are views of one model: a change on either side updates the
+// other. The graph drives the text live; the text drives the graph on Apply.
+initTextEditor({ onApply: (project) => reloadFromModel(project) });
+initGraphEditor({ onChange: (project) => syncFromModel(project) });
+
+document.getElementById("graph-add-condition").addEventListener("click", () => addControlBlock("condition"));
+document.getElementById("graph-add-loop").addEventListener("click", () => addControlBlock("loop"));
 
 onBottomClear((tab) => {
   const project = activeProject();
@@ -213,9 +230,13 @@ setCount("console", 0);
 // Open something straight away, for screenshots and for the live demo:
 //   ?new=1     an empty project
 //   ?sample=1  the Lab 4 Part II demo app, which this IDE must be able to rebuild
-const query = new URLSearchParams(location.search);
-if (query.has("new")) createProject({ name: "untitled-1" });
-if (query.has("sample")) {
+// Done once the space is known, so the blocks can label their arguments with
+// the input names the things advertised.
+function openRequestedProject() {
+  const query = new URLSearchParams(location.search);
+  if (query.has("new")) createProject({ name: "untitled-1" });
+  if (!query.has("sample")) return;
+
   createProject({
     name: "AirControl",
     source: [
