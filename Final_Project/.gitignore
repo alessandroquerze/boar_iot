@@ -6,3 +6,7 @@ apps/*.iot
 
 # Local settings written by the server at runtime.
 server/settings.local.json
+
+# …except the two that ship with the IDE, as examples and for the demo.
+!apps/AirControl.iot
+!apps/NightWatch.iot

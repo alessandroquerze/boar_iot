@@ -25,9 +25,9 @@ import {
 } from "@codemirror/view";
 import { styleTags, tags } from "@lezer/highlight";
 
-import { buildAst, callSignature, walk } from "../lang/ast.js";
+import { buildAst } from "../lang/ast.js";
 import { PORTS, astToGraph, graphToAst, layoutOf, parseConditionText, tailOf } from "../lang/graph.js";
-import { describeStatement, predicateText, printProgram } from "../lang/print.js";
+import { printProgram } from "../lang/print.js";
 import { parser } from "../lang/iot.parser.js";
 import { catalogueFromSpace, validate } from "../lang/validate.js";
 
@@ -278,15 +278,10 @@ export {
   PORTS,
   astToGraph,
   buildAst,
-  callSignature,
   catalogueFromSpace,
-  describeStatement,
   graphToAst,
   layoutOf,
-  parseConditionText,
-  predicateText,
   printProgram,
   tailOf,
   validate,
-  walk,
 };

@@ -280,24 +280,26 @@ Each library is recorded in `README.md` with its licence and the reason for it, 
 | `server/apps.js` | the Atlas working directory: list, read, write, delete `.iot`, name and extension rules |
 | `server/runtime.js` | run life cycle: activate, stop, `Active`/`Stopped`/`Completed`, start time, log fan-out |
 | `lang/iot.grammar` | the Lezer grammar of the composition language (source of truth for syntax) |
-| `lang/iot.parser.js` | generated parser (committed; rebuilt by `npm run build`) |
+| `lang/iot.parser.js`, `lang/iot.terms.js` | generated parser (committed; rebuilt by `npm run build`) |
 | `lang/ast.js` | Lezer tree → AST, with a stable id and a source range per node |
 | `lang/print.js` | AST → text, and the line range each node printed to |
 | `lang/validate.js` | syntax errors from the tree + the few catalogue checks (§6.4) |
 | `lang/graph.js` | AST ↔ Drawflow graph conversion, both directions |
 | `lang/run.js` | the orchestrator, ported from Lab 4 `app.js` (L10–L15) |
+| `public/editor-entry.js` | the only file that knows CodeMirror: bundled into `public/vendor/editor.bundle.js` and exposed as `window.AtlasEditor` |
 | `public/index.html` | the VS Code-shaped shell |
 | `public/style.css` | the whole look (dark, VS Code-like) |
 | `public/main.js` | bootstrap, project tabs, menu actions, SSE subscription |
 | `public/project.js` | one open project: its AST, both editor states, console, dirty/lock flags |
-| `public/panel-apps.js` | Apps side panel |
+| `public/panel-apps.js` | Apps side panel: list, open, save, finalize, delete |
 | `public/panel-devices.js` | Devices side panel |
 | `public/graph-editor.js` | Drawflow wiring, lock/blur, change events |
 | `public/text-editor.js` | CodeMirror view, highlight decorations, Apply Changes |
 | `public/bottom-panel.js` | console (validation + output) and the app status panel |
 | `public/settings.js` | settings, incl. the highlighting switch |
 | `public/vendor/` | `drawflow.min.js`, `drawflow.min.css`, `editor.bundle.js` |
-| `apps/` | the default Atlas working directory |
+| `public/dev/probe.html` | development aid: drives the IDE in an iframe and reports what happened, so the sync behaviour can be checked from a terminal |
+| `apps/` | the default Atlas working directory, with two example apps |
 | `tests/` | language, graph and app-manager tests |
 
 ---
@@ -633,15 +635,15 @@ Each step fits in part of a session and ends with a commit, a push and a
 |---|---|---|
 | 0 | **Answer the questions.** Fold the answers into this plan, empty `QUESTIONS.md` | ✅ done 2026-11-20: §12 records the thirteen decisions, `QUESTIONS.md` is closed |
 | 1 | **Capture the real tweets.** `mosquitto_sub -h <pi> -t '/Atlas/#' -v`; write the actual field names and topics into `docs/tweets.md`; correct §5.2 | `docs/tweets.md` lists one real example of each of the five tweet types, or records that no hardware was available and the middleware source is the only reference |
-| 2 | **Skeleton.** `package.json`, `build.mjs`, vendored Drawflow, `server/index.js` serving `public/` + `GET /api/state` with a fixture, the §8 shell with empty panels, dark theme | `npm start` serves an IDE-shaped page with its address in the meta bar; `npm test` runs and passes with no tests |
-| 3 | **The language.** `lang/iot.grammar`, generated parser, `ast.js`, `print.js`, `validate.js`, `tests/lang.test.js` with the Lab 4 grammar cases (L6, L7) plus print/parse round-trips | every Lab 4 example parses, prints back identically, and each malformed example yields an error with the right line |
-| 4 | **Discovery.** `space.js`, `gateway-sim.js` (the Lab 4 thing, L17–L19), `gateway-atlas.js`, SSE, the freeze overlay | with the simulator the Devices panel fills from tweets, alphabetically, grouped by thing → sensors / actuators / services / relationships; the overlay appears and clears |
-| 5 | **Text editor.** `editor.bundle.js` (CodeMirror 6 + the grammar), syntax highlighting, gutter errors, console wiring, Apply Changes / Discard with lock-and-blur | typing locks and blurs the graph; a bad program lists errors in the console with red highlights and applies nothing; a good one unlocks |
-| 6 | **Graphical editor.** `graph-editor.js`, the three node types, drag from the Devices panel, `lang/graph.js` both ways, `tests/graph.test.js` | the Lab 4 Part II demo app (L24) can be built entirely by dragging, and AST → graph → AST round-trips |
-| 7 | **Green/red sync.** §7.1 in full, plus selection sync and the settings switch | adding a block greens its new lines; deleting one reds the lines and then removes them; the switch turns both off |
-| 8 | **Projects and tabs.** `project.js`, the tab bar, per-project state, close/dirty handling | two apps open at once, each with its own graph, text, console and lock state; switching tabs never leaks state |
-| 9 | **App manager.** `apps.js`, the Apps panel, `update` (save), new, finalize, clear, delete; name and `.iot` rules | the R4 and R2 saving rules all hold, incl. `name.ext` → `name.ext.iot`; the app list survives a restart |
-| 10 | **Runtime.** `run.js` ported from Lab 4 (L10–L15), `runtime.js`, `activate`/`stop`, the Status tab | an app runs against the simulator with the Lab 4 log semantics; a finite app ends `Completed` and cannot be stopped; a looping one stays `Active` until `stop` |
+| 2 | **Skeleton.** `package.json`, `build.mjs`, vendored Drawflow, `server/index.js` serving `public/` + `GET /api/state` with a fixture, the §8 shell with empty panels, dark theme | `npm start` serves an IDE-shaped page with its address in the meta bar; `npm test` runs and passes with no tests  ✅ |
+| 3 | **The language.** `lang/iot.grammar`, generated parser, `ast.js`, `print.js`, `validate.js`, `tests/lang.test.js` with the Lab 4 grammar cases (L6, L7) plus print/parse round-trips | every Lab 4 example parses, prints back identically, and each malformed example yields an error with the right line  ✅ |
+| 4 | **Discovery.** `space.js`, `gateway-sim.js` (the Lab 4 thing, L17–L19), `gateway-atlas.js`, SSE, the freeze overlay | with the simulator the Devices panel fills from tweets, alphabetically, grouped by thing → sensors / actuators / services / relationships; the overlay appears and clears  ✅ |
+| 5 | **Text editor.** `editor.bundle.js` (CodeMirror 6 + the grammar), syntax highlighting, gutter errors, console wiring, Apply Changes / Discard with lock-and-blur | typing locks and blurs the graph; a bad program lists errors in the console with red highlights and applies nothing; a good one unlocks  ✅ |
+| 6 | **Graphical editor.** `graph-editor.js`, the three node types, drag from the Devices panel, `lang/graph.js` both ways, `tests/graph.test.js` | the Lab 4 Part II demo app (L24) can be built entirely by dragging, and AST → graph → AST round-trips  ✅ |
+| 7 | **Green/red sync.** §7.1 in full, plus selection sync and the settings switch | adding a block greens its new lines; deleting one reds the lines and then removes them; the switch turns both off  ✅ |
+| 8 | **Projects and tabs.** `project.js`, the tab bar, per-project state, close/dirty handling | two apps open at once, each with its own graph, text, console and lock state; switching tabs never leaks state  ✅ |
+| 9 | **App manager.** `apps.js`, the Apps panel, `update` (save), new, finalize, clear, delete; name and `.iot` rules | the R4 and R2 saving rules all hold, incl. `name.ext` → `name.ext.iot`; the app list survives a restart  ✅ |
+| 10 | **Runtime.** `run.js` ported from Lab 4 (L10–L15), `runtime.js`, `activate`/`stop`, the Status tab | an app runs against the simulator with the Lab 4 log semantics; a finite app ends `Completed` and cannot be stopped; a looping one stays `Active` until `stop`  ✅ |
 | 11 | **Hardware pass.** Point the Atlas gateway at the real RPi(s), fix what the real tweets and the 6668 timing break (L20, L21) | the Lab 4 Part II demo app runs from the IDE against the real thing |
 | 12 | **Polish and deliver.** README with the licence table, screenshots of the IDE and every dialog, the ≤5-page report, the 2-minute deck, rehearsals | the deliverables checklist is complete and a tagged version is submittable |
 

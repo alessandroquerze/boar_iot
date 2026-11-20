@@ -57,8 +57,6 @@ export function createProject({ name = "untitled", path = null, source = "", lay
     dirty: false,
     savedText: "",
     console: [],
-    output: [],
-    run: null,
   };
 
   reprint(project);
@@ -121,9 +119,4 @@ export function markSaved(project) {
 /** Each project keeps its own console, so switching tabs switches the errors. */
 export function setConsole(project, lines) {
   project.console = lines;
-}
-
-export function appendOutput(project, line) {
-  project.output.push(line);
-  if (project.output.length > 500) project.output.shift();
 }

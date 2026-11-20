@@ -135,10 +135,6 @@ function clearPending() {
   pending.fade = null;
 }
 
-export function editorHandle() {
-  return editor;
-}
-
 // --- user editing -----------------------------------------------------------
 
 function handleUserEdit() {

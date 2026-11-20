@@ -1,0 +1,10 @@
+{
+  "format": "atlas-iot-app",
+  "version": 1,
+  "name": "NightWatch",
+  "finalized": true,
+  "created": "2026-11-20T18:00:00.000Z",
+  "modified": "2026-11-20T18:00:00.000Z",
+  "source": "LOOP EVERY 10s\n     IF   AT_BoarAirSensor.Read_Temp(C) > 26\n     DO\n          AT_BoarAirSensor.Fan_On(50)\n     ELSE\n          AT_BoarAirSensor.Fan_Off()\n     END\nEND",
+  "layout": {}
+}

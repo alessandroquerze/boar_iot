@@ -6,7 +6,7 @@
 // produced, which is what links a block on the canvas to its lines in the
 // editor (and back).
 
-import { argumentText, callSignature } from "./ast.js";
+import { callSignature } from "./ast.js";
 
 const GUTTER = 5; // width of the keyword column: "RUN  ", "THEN ", "ELSE "…
 
@@ -19,14 +19,6 @@ export function printProgram(ast) {
   const printer = { out: [], lines: new Map(), owners: new Map() };
   printBlock(ast.body, 0, printer);
   return { text: printer.out.join("\n"), lines: printer.lines, owners: printer.owners };
-}
-
-/** The one-line form of a statement's head, used for tooltips and node labels. */
-export function describeStatement(statement) {
-  if (statement.kind === "order") return statement.calls.map(callSignature).join(" THEN ");
-  if (statement.kind === "condition") return `IF ${conditionText(statement.test)}`;
-  if (statement.kind === "loop") return `LOOP EVERY ${statement.everySeconds}s`;
-  return "";
 }
 
 export function conditionText(test) {
@@ -94,5 +86,3 @@ function printLoop(statement, indent, printer) {
   printBlock(statement.body, indent + GUTTER, printer);
   emit(printer, indent, "END", "", statement.id);
 }
-
-export { argumentText };

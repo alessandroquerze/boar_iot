@@ -9,11 +9,21 @@
 ```bash
 npm install
 npm run build     # grammar -> parser, CodeMirror -> public/vendor/editor.bundle.js
-npm test
-npm start         # prints the LAN address the IDE is reachable at
-npm start -- --simulate            # no hardware needed
-npm start -- --broker 192.168.8.189:1883 --apps ./apps
+npm test          # 101 tests, no browser and no hardware needed
+npm start -- --simulate      # the Lab 4 thing, simulated: nothing else to set up
+npm start                    # the real space, broker 192.168.8.189:1883
+npm start -- --broker <ip>:1883 --apps /path/to/atlas/working/directory
 ```
+
+The IDE prints the LAN address it is reachable at, and shows it in the bar at
+the top. `npm run build` must be re-run, and its two outputs committed, after
+any change to `lang/` or `public/editor-entry.js`.
+
+Handy query parameters, used for the demo and for screenshots:
+`?panel=devices` opens a side panel directly, `?sample=1` opens an example app,
+`?new=1` an empty one, and `?live=0` polls instead of holding an event stream
+open. `public/dev/probe.html` is a development aid that drives the IDE in an
+iframe and reports what happened — see the comment at the top of that file.
 
 ## Third-party open source
 
