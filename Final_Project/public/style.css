@@ -647,6 +647,33 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ------------------------------------------------------------ resize handles */
+
+#sidebar, #bottom-panel { position: relative; }
+
+.resizer {
+  position: absolute;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.resizer:hover,
+.resizer:focus-visible,
+.resizer.dragging { background: var(--focus); outline: none; }
+
+.resizer-v.resizer { top: 0; bottom: 0; right: -2px; width: 4px; cursor: col-resize; }
+.resizer-h { left: 0; right: 0; top: -2px; height: 4px; cursor: row-resize; }
+.resizer-v.resizer-left { right: auto; left: -2px; }
+
+/* con il pannello inferiore collassato non c'è nulla da ridimensionare */
+#editorarea.bottom-collapsed #bottom-resizer { display: none; }
+
+/* durante il drag: niente selezione di testo, cursore fisso ovunque */
+body.resizing { user-select: none; }
+body.resizing-v { cursor: col-resize; }
+body.resizing-h { cursor: row-resize; }
+
 /* ------------------------------------------------------------- scrollbars */
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
