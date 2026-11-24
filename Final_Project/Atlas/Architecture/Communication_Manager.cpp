@@ -298,7 +298,7 @@ void Communication_Manager::CaptureAPIcalls_IPSocket(){
           	
 		cout<<"done processing the received API Call tweet........"<<endl;
 		close(newsockfd);
-		wait(3);
+		// wait(3); // The next TCP call can be accepted as soon as this one closes.
 	}
 	close(sockfd);
 }

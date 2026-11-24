@@ -4,12 +4,12 @@
   "name": "AirControl",
   "finalized": true,
   "created": "2026-11-20T18:00:00.000Z",
-  "modified": "2026-11-23T11:30:35.507Z",
-  "source": "RUN  AT_BoarAirSensor.Calibrate_Sensor()\nTHEN AT_BoarAirSensor.Read_Temp(C)\nIF   AT_BoarAirSensor.Read_Temp(C) > 25 AND AT_BoarAirSensor.Read_Humidity() > 45\nDO\n     AT_BoarAirSensor.Fan_On(60)\n     AT_BoarAirSensor.Set_Window(40)\nELSE\n     AT_BoarAirSensor.Fan_Off()\n     AT_BoarAirSensor.Window_Close()\nEND",
+  "modified": "2026-11-24T17:20:35.317Z",
+  "source": "RUN  AT_BoarAirSensor.Calibrate_Sensor()\nTHEN AT_BoarAirSensor.Read_Temp(C)\nIF   AT_BoarAirSensor.Read_Temp(C) > 25 AND AT_BoarAirSensor.Read_Humidity() > 40\nDO\n     AT_BoarAirSensor.Fan_On(30)\n     AT_BoarAirSensor.Set_Window(40)\nELSE\n     AT_BoarAirSensor.Fan_Off()\n     AT_BoarAirSensor.Window_Close()\nEND",
   "layout": {
     "start": {
-      "x": 60,
-      "y": 40
+      "x": -136,
+      "y": 102
     },
     "c:3o0ev0#0": {
       "x": 60,
@@ -32,16 +32,48 @@
       "y": 224
     },
     "c:980jw7#0": {
-      "x": 476,
-      "y": 355.3333333333333
+      "x": 23,
+      "y": 419
     },
     "c:38s1rg#0": {
       "x": 711.6666666666666,
       "y": 347
     },
     "if:3v5ccc#0": {
-      "x": 60,
-      "y": 325
+      "x": 105,
+      "y": 432
+    },
+    "if:xoqp96#0": {
+      "x": 23,
+      "y": 419
+    },
+    "if:07omos#0": {
+      "x": 482,
+      "y": 236
+    },
+    "if:w0t33c#0": {
+      "x": 23,
+      "y": 419
+    },
+    "if:1wmzw0#0": {
+      "x": 23,
+      "y": 419
+    },
+    "c:nrqe5n#0": {
+      "x": 482,
+      "y": 236
+    },
+    "c:00u6ys#0": {
+      "x": 482,
+      "y": 236
+    },
+    "if:414muw#0": {
+      "x": 482,
+      "y": 236
+    },
+    "if:2h7bvk#0": {
+      "x": 23,
+      "y": 419
     }
   }
 }

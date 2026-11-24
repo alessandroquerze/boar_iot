@@ -158,8 +158,8 @@ until the thing closes the connection.
   service or a wrong argument count gives `Unsuccessful`.
 - `Service Result` is `"No Output"` for a `void` service, otherwise the value as
   text — so the orchestrator parses it to a number before comparing (L11).
-- **Atlas pauses after each call** (Lab 4 measured ~3 s; `atlas_demo.cpp` also sleeps
-  100 ms between calls), so the gateway serialises calls per thing with a
-  configurable gap and a 15 s timeout.
+- Lab 4 Atlas paused after each call. The packaged Atlas accepts the next TCP
+  call after closing the previous one. The IDE gateway serialises calls per
+  thing with a 15 s socket timeout.
 - Atlas has no error status for a service *body*, so a failed DHT11 read comes back
   as `-1` with `Status: Successful`. The IDE does not try to hide that.

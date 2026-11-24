@@ -40,11 +40,20 @@ Apri `http://localhost:7000`. Lo stato atteso è `broker: connected` e nella sch
 
 ## Ricompila Atlas sul Raspberry
 
-Per ricompilare il middleware, installa anche CMake e gli header di libcurl. La compilazione produce `build/Atlas`. L’opzione `--build` avvia esplicitamente questa copia, anche se è disponibile il binario distribuito.
+Per ricompilare il middleware, installa anche CMake e gli header di libcurl se mancano. Dalla cartella `Atlas`, esegui la build con il tuo utente Linux.
 
 ```sh
-sudo apt install build-essential cmake libcurl4-openssl-dev autogen mosquitto-clients
+sudo apt install build-essential cmake libcurl4-openssl-dev
 cd ~/Atlas
-sh build.sh
+sh build.sh --parallel 2
+```
+
+La build produce `build/Atlas`. Ferma l’istanza in esecuzione con `Ctrl+C` nel suo terminale per liberare la porta TCP `6668`, poi avvia la nuova build.
+
+```sh
 sudo sh run.sh --build
 ```
+
+`sudo sh run.sh` sceglie il binario distribuito in `bin/Atlas` quando è presente.
+
+Lo script esegue `cmake -S Main -B build` e poi `cmake --build build` con gli eventuali argomenti passati al comando. Il backend dell’IDE esegue direttamente il JavaScript. Dopo aver aggiornato il suo codice basta riavviare Node sul PC.
