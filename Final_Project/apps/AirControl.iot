@@ -4,7 +4,7 @@
   "name": "AirControl",
   "finalized": true,
   "created": "2026-11-20T18:00:00.000Z",
-  "modified": "2026-11-24T17:20:35.317Z",
+  "modified": "2026-11-24T17:38:54.973Z",
   "source": "RUN  AT_BoarAirSensor.Calibrate_Sensor()\nTHEN AT_BoarAirSensor.Read_Temp(C)\nIF   AT_BoarAirSensor.Read_Temp(C) > 25 AND AT_BoarAirSensor.Read_Humidity() > 40\nDO\n     AT_BoarAirSensor.Fan_On(30)\n     AT_BoarAirSensor.Set_Window(40)\nELSE\n     AT_BoarAirSensor.Fan_Off()\n     AT_BoarAirSensor.Window_Close()\nEND",
   "layout": {
     "start": {
@@ -72,6 +72,14 @@
       "y": 236
     },
     "if:2h7bvk#0": {
+      "x": 23,
+      "y": 419
+    },
+    "if:wurw69#0": {
+      "x": 23,
+      "y": 419
+    },
+    "if:wpocds#0": {
       "x": 23,
       "y": 419
     }
