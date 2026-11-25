@@ -538,7 +538,6 @@ button:disabled { opacity: 0.4; cursor: default; }
 .node-condition .output_2::after { content: "else"; }
 .node-condition .output_3::after { content: "next"; }
 .node-loop .output_1::after { content: "body"; }
-.node-loop .output_2::after { content: "next"; }
 .node-start .output_1::after { content: "next"; }
 
 .drawflow .connection .main-path { stroke: #6e7681; stroke-width: 2px; }

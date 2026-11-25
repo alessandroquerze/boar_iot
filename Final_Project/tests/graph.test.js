@@ -155,6 +155,18 @@ test("the tail is after an IF, not inside one of its branches", () => {
   assert.deepEqual(tailOf(graph), { nodeId: String(condition.id), port: "next" });
 });
 
+test("a loop has only a body port, and nothing is chained after it", () => {
+  const graph = astToGraph(buildAst("LOOP EVERY 5s\n  Fan_On(10)\nEND\nRUN Fan_Off()"));
+  const loop = nodesOf(graph).find((node) => node.name === "loop");
+  assert.deepEqual(Object.keys(loop.outputs), ["output_1"]);
+  assert.equal(print(graphToAst(graph)), "LOOP EVERY 5s\n     Fan_On(10)\nEND");
+});
+
+test("there is no tail after a loop, so a new block is left unconnected", () => {
+  const graph = astToGraph(buildAst("LOOP EVERY 5s\n  Fan_On(10)\nEND"));
+  assert.equal(tailOf(graph), null);
+});
+
 test("a block appended at the tail becomes the last statement", () => {
   const ast = buildAst("RUN Fan_On(75)");
   const graph = astToGraph(ast);
