@@ -292,7 +292,7 @@ initAppsPanel();
 
 // The menu bar: the four app actions the prompt names, in lowercase.
 const MENU_ACTIONS = {
-  update: () => saveActive(),
+  save: () => saveActive(),
   delete: () => deleteActive(),
   activate: activateActive,
   stop: stopActive,

@@ -204,13 +204,6 @@ button:disabled { opacity: 0.4; cursor: default; }
 .panel-actions { margin-left: auto; display: flex; gap: 2px; }
 .panel-body { flex: 1; overflow: auto; padding-bottom: 12px; }
 
-.panel-footer {
-  display: flex;
-  gap: 6px;
-  padding: 8px;
-  border-top: 1px solid var(--border);
-}
-
 .icon-btn {
   width: 22px;
   height: 22px;

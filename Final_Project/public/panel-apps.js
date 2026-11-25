@@ -1,7 +1,7 @@
 // The Apps side panel: the apps found in the Atlas working directory.
 //
 // Double-clicking one opens it in both editors — the guidelines' UPLOAD APP.
-// Saving (the menu bar's `update`), finalizing and deleting all go through
+// Saving (the menu bar's `save`) and deleting both go through
 // here, because an app is a file and the server owns the files.
 
 import { render } from "./bottom-panel.js";
@@ -20,7 +20,6 @@ let selected = null;
 let runs = [];
 
 export function initAppsPanel() {
-  document.getElementById("app-finalize").addEventListener("click", finalizeActive);
   onProjectsChange(renderApps);
   refresh();
 }
@@ -54,9 +53,6 @@ function renderApps() {
   } else {
     for (const app of apps) host.appendChild(appRow(app));
   }
-
-  const project = activeProject();
-  document.getElementById("app-finalize").disabled = !project;
 }
 
 function appRow(app) {
@@ -72,7 +68,6 @@ function appRow(app) {
 
   const run = runs.find((candidate) => candidate.file === app.file);
   if (run) row.appendChild(badge(run.status.toLowerCase(), run.status === "Active" ? "active" : "completed"));
-  else if (!app.finalized) row.appendChild(badge("draft", "draft"));
 
   row.addEventListener("click", () => {
     selected = app.file;
@@ -101,7 +96,6 @@ export async function openApp(file) {
     path: app.file,
     source: app.source ?? "",
     layout: app.layout ?? {},
-    finalized: app.finalized ?? false,
   });
   markSaved(project);
 }
@@ -112,7 +106,7 @@ export async function openApp(file) {
  * SAVE APP. A project that has never been saved is asked for a name; one that
  * has a file is overwritten silently, so saving repeatedly is cheap.
  */
-export async function saveActive({ finalize = false } = {}) {
+export async function saveActive() {
   const project = activeProject();
   if (!project) return null;
 
@@ -121,12 +115,18 @@ export async function saveActive({ finalize = false } = {}) {
     const typed = prompt("Save app as (the IDE adds .iot):", project.name);
     if (typed === null) return null;
     file = typed.trim();
+    // Apps live only in the working directory, so a path is refused up front
+    // and the save is dropped exactly as if Cancel had been pressed.
+    if (/[\/\\]/.test(file)) {
+      alert("The app was NOT saved: only a name is allowed, not a path.");
+      return null;
+    }
   }
 
   const response = await fetch(`/api/apps/${encodeURIComponent(file)}`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ source: project.text, layout: project.layout, finalized: finalize }),
+    body: JSON.stringify({ source: project.text, layout: project.layout }),
   });
 
   const result = await response.json();
@@ -137,24 +137,9 @@ export async function saveActive({ finalize = false } = {}) {
 
   project.path = result.file;
   project.name = result.name;
-  project.finalized = result.finalized;
   markSaved(project);
   await refresh();
   return result;
-}
-
-/** FINALIZE: name the app, save it, and list it among the others. */
-async function finalizeActive() {
-  const project = activeProject();
-  if (!project) return;
-
-  if (project.ast.body.length === 0) {
-    render("console", [{ kind: "error", what: "there is nothing to finalize: the app is empty." }]);
-    return;
-  }
-
-  const saved = await saveActive({ finalize: true });
-  if (saved) render("console", [{ kind: "ok", what: `finalized as ${saved.file}` }]);
 }
 
 // --- deleting ---------------------------------------------------------------

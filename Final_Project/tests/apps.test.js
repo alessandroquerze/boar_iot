@@ -83,7 +83,6 @@ test("saving writes an app file that can be read back", async () => {
 
   assert.equal(saved.file, "AirControl.iot");
   assert.equal(saved.name, "AirControl");
-  assert.equal(saved.finalized, false);
 
   const read = await store.read("AirControl.iot");
   assert.equal(read.source, "RUN Fan_Off()");
@@ -100,11 +99,17 @@ test("saving again overwrites the same file and keeps the creation time", async 
   assert.equal((await store.list()).filter((app) => app.file === "Repeat.iot").length, 1);
 });
 
-test("once finalized, an app stays finalized when it is saved again", async () => {
-  await store.write("Final", { source: "RUN Fan_Off()", finalized: true });
-  await store.write("Final", { source: "RUN Fan_On(1)" });
+test("an older file that still has a finalized flag opens and saves", async () => {
+  const old = { format: "atlas-iot-app", version: 1, name: "Old", finalized: true, source: "RUN Fan_Off()", layout: {} };
+  await writeFile(join(directory, "Old.iot"), JSON.stringify(old));
 
-  assert.equal((await store.read("Final.iot")).finalized, true);
+  assert.equal((await store.read("Old.iot")).source, "RUN Fan_Off()");
+  assert.ok((await store.list()).some((app) => app.file === "Old.iot"));
+
+  await store.write("Old", { source: "RUN Fan_On(1)", finalized: true });
+  const saved = await store.read("Old.iot");
+  assert.equal(saved.source, "RUN Fan_On(1)");
+  assert.equal("finalized" in saved, false, "the flag is no longer written");
 });
 
 test("the working directory is scanned, newest first, ignoring other files", async () => {
@@ -123,7 +128,6 @@ test("a file that is not valid JSON is listed, not fatal", async () => {
   const broken = (await store.list()).find((app) => app.file === "broken.iot");
 
   assert.equal(broken.name, "broken");
-  assert.equal(broken.finalized, false);
 });
 
 test("deleting removes the file from the working directory", async () => {

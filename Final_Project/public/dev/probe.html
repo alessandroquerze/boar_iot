@@ -257,10 +257,9 @@ const SCENARIOS = {
 
     doc().getElementById("text-discard").click();
     await wait(50);
-    doc().querySelector('.menu-action[data-action="update"]').click();
+    doc().querySelector('.menu-action[data-action="save"]').click();
     await wait(400);
-    say(`dirty after update: ${doc().querySelector('#tabbar .tab[aria-selected="true"]').dataset.dirty}`);
-    say(`finalize enabled: ${!doc().getElementById("app-finalize").disabled}`);
+    say(`dirty after save: ${doc().querySelector('#tabbar .tab[aria-selected="true"]').dataset.dirty}`);
   },
 
   // Activate a looping app, watch the status panel, then stop it.

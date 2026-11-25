@@ -26,12 +26,13 @@ guideline's intent is still satisfied.
 - **Guideline (R2, R3, R4):** the IDE exposes SAVE APP, UPLOAD APP, ACTIVATE, STOP,
   DELETE, plus **Clear** and **Finalize** in the editor.
 - **Prompt:** the top menu bar is exactly `activate`, `update`, `stop`, `delete`.
-- **Resolution:** the menu bar holds those four and nothing else.
-  `activate` → ACTIVATE, `update` → SAVE APP for the open project, `stop` → STOP,
-  `delete` → DELETE. The three remaining actions move to where the prompt already
-  puts their trigger or where VS Code would put them: UPLOAD APP is the
-  double-click on an app in the Apps panel (the prompt specifies this), *new app* and
-  *finalize* live in the Apps panel, *clear* in the graphical editor's own toolbar.
+- **Resolution:** the menu bar holds four actions and nothing else.
+  `activate` → ACTIVATE, `save` → SAVE APP for the open project, `stop` → STOP,
+  `delete` → DELETE. The user later renamed `update` to `save`, and dropped
+  *finalize*: `save` is the only save action. The remaining actions move to where
+  the prompt already puts their trigger or where VS Code would put them: UPLOAD APP
+  is the double-click on an app in the Apps panel (the prompt specifies this),
+  *new app* lives in the Apps panel, *clear* in the graphical editor's own toolbar.
   Confirmed with the user as `QUESTIONS.md` Q2.
 
 ## C3 — Bottom panel: status panel vs. console
@@ -51,11 +52,11 @@ guideline's intent is still satisfied.
   gets added to the Apps tab"; R2 says the Apps tab is "initially empty".
 - **Prompt:** the Apps panel is "a list of the available apps created by developers",
   with no mention of a finalize step, and `update` is a first-class menu action.
-- **Resolution:** saving (`update`) is what puts an app in the list, because the
-  prompt makes the list a plain view of the apps that exist. `finalized: true` is kept
-  as a flag in the `.iot` file and set by the *finalize* action, which additionally
-  validates the whole app against the discovered catalogue. A saved-but-not-finalized
-  app is shown in the list with a draft marker. Nothing is lost; the gate is softer.
+- **Resolution:** saving (`save`) is what puts an app in the list, because the
+  prompt makes the list a plain view of the apps that exist. The *finalize* action
+  was dropped at the user's request: `save` is the only save action, there is no
+  `finalized` flag and no draft marker. Older `.iot` files that still contain
+  `"finalized"` open and save normally; the key is ignored.
 
 ## C5 — A text-based *or* GUI editor vs. both, kept in sync
 
