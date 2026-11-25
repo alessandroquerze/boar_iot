@@ -36,15 +36,15 @@ const ENTITIES = [
   ["Window", "Servo Motor"],
 ];
 
-// Lab 4's IoT-DDL only declares the two `interfere` relationships. The other two
-// are the order-based and condition-based relationships the assignment asks for;
-// they must be added to the real IoT-DDL before the hardware demo (see
-// docs/tweets.md and README §4).
+// Exactly the relationships declared in Atlas/ConfigurationFiles/Atlas_IoTDDL.xml,
+// entity by entity. The IDE must never show one the IoT-DDL does not declare.
 const RELATIONSHIPS = [
+  ["Calibrate before temperature", "order", "Calibrate_Sensor", "Read_Temp", "Calibrate the sensor before reading the temperature"],
+  ["Calibrate before humidity", "order", "Calibrate_Sensor", "Read_Humidity", "Calibrate the sensor before reading the humidity"],
   ["Fan On interference", "interfere", "Fan_On", "Fan_Off", "Turning on and off the fan should be concurrent"],
   ["Fan Off interference", "interfere", "Fan_Off", "Fan_On", "Turning on and off the fan should be concurrent"],
-  ["Vent after reading", "order", "Read_Temp", "Fan_On", "Read the temperature before driving the fan"],
-  ["Open when hot", "condition", "Read_Temp", "Set_Window", "Open the window depending on the temperature read"],
+  ["Close interference", "interfere", "Window_Close", "Set_Window", "Setting and closing the window should be concurrent"],
+  ["Set interference", "interfere", "Set_Window", "Window_Close", "Setting and closing the window should be concurrent"],
 ];
 
 const RANGES = { Fan_On: [0, 75], Set_Window: [0, 50], Read_Temp: [0, 1] };

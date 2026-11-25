@@ -336,7 +336,23 @@ Humidity = ok ? data[0] : -1;
 				<Number_UnboundedServices>0</Number_UnboundedServices>
 			</UnboundedService>
 			<Relationships>
-				<Number_Relationships>0</Number_Relationships>
+				<Relationship_1>
+					<Name>Calibrate before temperature</Name>
+					<Establisher></Establisher>
+					<Description>Calibrate the sensor before reading the temperature</Description>
+					<type>order</type>
+					<Input1>Calibrate_Sensor</Input1>
+					<Input2>Read_Temp</Input2>
+				</Relationship_1>
+				<Relationship_2>
+					<Name>Calibrate before humidity</Name>
+					<Establisher></Establisher>
+					<Description>Calibrate the sensor before reading the humidity</Description>
+					<type>order</type>
+					<Input1>Calibrate_Sensor</Input1>
+					<Input2>Read_Humidity</Input2>
+				</Relationship_2>
+				<Number_Relationships>2</Number_Relationships>
 			</Relationships>
 		</Entity_1>
 		<Entity_2>
