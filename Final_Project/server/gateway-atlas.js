@@ -6,14 +6,12 @@
 // tweet is the least certain part of docs/tweets.md.
 //
 // Calls: one TCP connection to the thing's port 6668 per call, one JSON object
-// out, reply read until the thing closes the connection. Atlas pauses after each
-// call, so calls to the same thing are queued and spaced.
+// out, reply read until the thing closes the connection. Calls to the same
+// thing run in order and the next call can start as soon as the reply arrives.
 
 import mqtt from "mqtt";
 import { createConnection } from "node:net";
 
-/** Atlas pauses about 3 s after a call; Lab 4's client also slept between calls. */
-const CALL_GAP_MS = 3000;
 const CALL_TIMEOUT_MS = 15000;
 
 export function createAtlasGateway({
@@ -21,7 +19,6 @@ export function createAtlasGateway({
   topicRoot = "/Atlas",
   onTweet,
   onStatus,
-  callGapMs = CALL_GAP_MS,
   timeoutMs = CALL_TIMEOUT_MS,
 } = {}) {
   let client = null;
@@ -57,8 +54,7 @@ export function createAtlasGateway({
     const previous = queues.get(key) ?? Promise.resolve();
     const next = previous
       .catch(() => {})
-      .then(() => sendCall(request, timeoutMs))
-      .finally(() => sleep(callGapMs));
+      .then(() => sendCall(request, timeoutMs));
 
     queues.set(key, next);
     return next;
@@ -136,8 +132,4 @@ function parseJson(text) {
   } catch {
     return null;
   }
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

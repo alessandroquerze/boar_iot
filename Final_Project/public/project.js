@@ -33,15 +33,13 @@ export function findProjectByPath(path) {
 }
 
 /**
- * @param {{name?: string, path?: string|null, source?: string, layout?: object,
- *          finalized?: boolean}} options
+ * @param {{name?: string, path?: string|null, source?: string, layout?: object}} options
  */
-export function createProject({ name = "untitled", path = null, source = "", layout = {}, finalized = false } = {}) {
+export function createProject({ name = "untitled", path = null, source = "", layout = {} } = {}) {
   const project = {
     id: `p${nextId++}`,
     name,
     path,
-    finalized,
     // The model, and the text last printed from it.
     ast: buildAst(source),
     text: "",

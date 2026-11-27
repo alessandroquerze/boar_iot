@@ -8,11 +8,11 @@
 //   condition  ──then──▶  the DO branch                     (type 3, condition-based)
 //              ──else──▶  the ELSE branch
 //              ──next──▶  the statement after END
-//   loop       ──body──▶  the body         ──next──▶ the statement after END
+//   loop       ──body──▶  the body
 //
-// Because every block has a `next`, the three types compose: anything can follow
-// anything, which is the "sequential operator and grouping delimiters" the
-// assignment asks for.
+// Every block but a loop has a `next`, so the three types compose: anything can
+// follow anything, which is the "sequential operator and grouping delimiters" the
+// assignment asks for. A loop runs until the app is stopped, so nothing follows it.
 
 import { argumentText, buildAst, parse } from "./ast.js";
 import { conditionText } from "./print.js";
@@ -22,7 +22,7 @@ export const PORTS = {
   start: ["next"],
   service: ["next", "ok"],
   condition: ["then", "else", "next"],
-  loop: ["body", "next"],
+  loop: ["body"],
 };
 
 const COLUMN_WIDTH = 270;
@@ -92,7 +92,8 @@ function buildStatement(statement, context, depth) {
   const node = addNode(context, "loop", { every: String(statement.everySeconds) }, statement.id, depth);
   const body = buildBlock(statement.body, context, depth + 1);
   if (body.entry) connect(context, node.id, "body", body.entry);
-  return { entry: node.id, exit: { id: node.id, port: "next" } };
+  // No exit: a loop has no `next`, so nothing is chained after it.
+  return { entry: node.id, exit: null };
 }
 
 function callData(call) {
@@ -164,7 +165,8 @@ export function layoutOf(graph) {
 
 /**
  * The free port at the end of the program, where a newly added block belongs.
- * Returns the start block itself for an empty program.
+ * Returns the start block itself for an empty program, and null when the program
+ * ends with a loop: a loop has no `next`, so the new block is left unconnected.
  * @returns {{nodeId: string, port: string}|null}
  */
 export function tailOf(graph) {
@@ -185,6 +187,7 @@ export function tailOf(graph) {
       last = chained;
     }
 
+    if (last.name === "loop") return null;
     const next = follow(nodes, last, "next");
     if (!next) return { nodeId: String(last.id), port: "next" };
     node = next;

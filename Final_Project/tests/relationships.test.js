@@ -43,10 +43,15 @@ const serviceTweet = (thing, entity, name, output = ["v", "int"], inputs = "NULL
     API: `${name}:[${inputs}]:(${output ? `${output[0]},${output[1]}, NULL` : "NULL"})`,
   });
 
-/** Both things, their services, and the air sensor's advertised relationships. */
+/**
+ * Both things, their services, and the air sensor's advertised relationship.
+ * The advertised one stays inside one entity, because that is all the IoT-DDL
+ * Builder can express — the whole reason user-defined ones are needed.
+ */
 function twoThingSpace() {
   const space = new Space({ id: "BoarSmartSpace" });
 
+  space.applyTweet(serviceTweet(AIR, "ClimateSensor", "Calibrate_Sensor", ["Calibration", "int"]));
   space.applyTweet(serviceTweet(AIR, "ClimateSensor", "Read_Temp", ["Temperature", "int"], "F_or_C,int, NULL"));
   space.applyTweet(serviceTweet(AIR, "Fan", "Fan_On", ["Fan_speed", "int"], "speed,int, NULL"));
   space.applyTweet(serviceTweet(AIR, "Fan", "Fan_Off", null));
@@ -55,11 +60,11 @@ function twoThingSpace() {
 
   space.applyTweet(
     tweet("Relationship", AIR, {
-      Name: "Vent after reading",
+      Name: "Calibrate before temperature",
       Type: "order",
-      Description: "Read the temperature before driving the fan",
-      "FS name": "Read_Temp",
-      "SS name": "Fan_On",
+      Description: "Calibrate the sensor before reading the temperature",
+      "FS name": "Calibrate_Sensor",
+      "SS name": "Read_Temp",
     }),
   );
   return space;
@@ -78,22 +83,27 @@ test("a Relationship tweet that arrives before its Service tweets resolves later
   // The tweet only carries "FS name" / "SS name"; which entity owns the service
   // is not knowable until the Service tweet turns up.
   space.applyTweet(
-    tweet("Relationship", AIR, { Name: "Vent after reading", Type: "order", "FS name": "Read_Temp", "SS name": "Fan_On" }),
+    tweet("Relationship", AIR, {
+      Name: "Calibrate before temperature",
+      Type: "order",
+      "FS name": "Calibrate_Sensor",
+      "SS name": "Read_Temp",
+    }),
   );
 
   let [relationship] = space.toJSON().relationships;
   assert.equal(relationship.source, "iot-ddl");
   assert.equal(relationship.resolved, false, "neither end has been heard yet");
   assert.equal(relationship.first.entity, "");
-  assert.equal(relationship.first.service, "Read_Temp");
+  assert.equal(relationship.first.service, "Calibrate_Sensor");
 
+  space.applyTweet(serviceTweet(AIR, "ClimateSensor", "Calibrate_Sensor"));
   space.applyTweet(serviceTweet(AIR, "ClimateSensor", "Read_Temp"));
-  space.applyTweet(serviceTweet(AIR, "Fan", "Fan_On"));
 
   [relationship] = space.toJSON().relationships;
   assert.deepEqual(endpoints(relationship), [
+    `${AIR}.ClimateSensor.Calibrate_Sensor`,
     `${AIR}.ClimateSensor.Read_Temp`,
-    `${AIR}.Fan.Fan_On`,
   ]);
   assert.equal(relationship.resolved, true);
 });
@@ -104,11 +114,11 @@ test("an advertised relationship keeps a stable id across a re-announcement", ()
 
   space.applyTweet(
     tweet("Relationship", AIR, {
-      Name: "Vent after reading",
+      Name: "Calibrate before temperature",
       Type: "order",
       Description: "edited in the IoT-DDL",
-      "FS name": "Read_Temp",
-      "SS name": "Fan_On",
+      "FS name": "Calibrate_Sensor",
+      "SS name": "Read_Temp",
     }),
   );
 
@@ -195,8 +205,8 @@ test("a duplicate of an advertised relationship is refused", () => {
   const error = errorFor({
     name: "My own version",
     type: "order",
-    first: { thing: AIR, service: "Read_Temp" },
-    second: { thing: AIR, service: "Fan_On" },
+    first: { thing: AIR, service: "Calibrate_Sensor" },
+    second: { thing: AIR, service: "Read_Temp" },
   });
 
   assert.match(error, /already exists/);
@@ -207,8 +217,8 @@ test("the same endpoints with a different type are not a duplicate", () => {
   assert.equal(
     errorFor({
       type: "condition",
-      first: { thing: AIR, service: "Read_Temp" },
-      second: { thing: AIR, service: "Fan_On" },
+      first: { thing: AIR, service: "Calibrate_Sensor" },
+      second: { thing: AIR, service: "Read_Temp" },
     }),
     null,
   );
@@ -397,10 +407,12 @@ before(async () => {
   );
   await once(server.stdout, "data");
 
-  // Wait for the simulated space to finish introducing itself.
-  for (let attempt = 0; attempt < 60; attempt++) {
+  // Wait for the start-up scan to end, not just for the tweets we care about:
+  // a thing's Identity tweet arrives before its Service tweets, so counting
+  // things would let the test run against a half-discovered space.
+  for (let attempt = 0; attempt < 120; attempt++) {
     const state = await (await fetch(`${base}/api/state`)).json();
-    if (state.things.length === 2 && state.relationships.length >= 6) return;
+    if (state.space.discovery === "ready" && state.things.length === 2) return;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error("the simulated space never finished announcing itself");

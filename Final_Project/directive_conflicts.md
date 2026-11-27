@@ -29,12 +29,13 @@ guideline's intent is still satisfied.
 - **Guideline (R2, R3, R4):** the IDE exposes SAVE APP, UPLOAD APP, ACTIVATE, STOP,
   DELETE, plus **Clear** and **Finalize** in the editor.
 - **Prompt:** the top menu bar is exactly `activate`, `update`, `stop`, `delete`.
-- **Resolution:** the menu bar holds those four and nothing else.
-  `activate` → ACTIVATE, `update` → SAVE APP for the open project, `stop` → STOP,
-  `delete` → DELETE. The three remaining actions move to where the prompt already
-  puts their trigger or where VS Code would put them: UPLOAD APP is the
-  double-click on an app in the Apps panel (the prompt specifies this), *new app* and
-  *finalize* live in the Apps panel, *clear* in the graphical editor's own toolbar.
+- **Resolution:** the menu bar holds four actions and nothing else.
+  `activate` → ACTIVATE, `save` → SAVE APP for the open project, `stop` → STOP,
+  `delete` → DELETE. The user later renamed `update` to `save`, and dropped
+  *finalize*: `save` is the only save action. The remaining actions move to where
+  the prompt already puts their trigger or where VS Code would put them: UPLOAD APP
+  is the double-click on an app in the Apps panel (the prompt specifies this),
+  *new app* lives in the Apps panel, *clear* in the graphical editor's own toolbar.
   Confirmed with the user as `QUESTIONS.md` Q2.
 
 ## C3 — Bottom panel: status panel vs. console
@@ -54,11 +55,11 @@ guideline's intent is still satisfied.
   gets added to the Apps tab"; R2 says the Apps tab is "initially empty".
 - **Prompt:** the Apps panel is "a list of the available apps created by developers",
   with no mention of a finalize step, and `update` is a first-class menu action.
-- **Resolution:** saving (`update`) is what puts an app in the list, because the
-  prompt makes the list a plain view of the apps that exist. `finalized: true` is kept
-  as a flag in the `.iot` file and set by the *finalize* action, which additionally
-  validates the whole app against the discovered catalogue. A saved-but-not-finalized
-  app is shown in the list with a draft marker. Nothing is lost; the gate is softer.
+- **Resolution:** saving (`save`) is what puts an app in the list, because the
+  prompt makes the list a plain view of the apps that exist. The *finalize* action
+  was dropped at the user's request: `save` is the only save action, there is no
+  `finalized` flag and no draft marker. Older `.iot` files that still contain
+  `"finalized"` open and save normally; the key is ignored.
 
 ## C5 — A text-based *or* GUI editor vs. both, kept in sync
 
@@ -116,6 +117,10 @@ guideline's intent is still satisfied.
   kind executes anything — a relationship only guides the developer while an `.iot`
   app is built, and `runtime.js` does not read them. Recorded because the "same
   thing" sentence now describes **only** the advertised half.
+  The simulator keeps the stricter house rule that goes with this: it advertises
+  **exactly** what `Atlas_IoTDDL.xml` declares and never invents a relationship, so
+  the second simulated thing `AT_BoarLamp` — whose IoT-DDL belongs to another group
+  and is not in this repo — advertises services and no relationships at all.
   See `PLAN.md` §5.1, §5.4, §6.2 and decision D4.
 
 ## C9 — `AGENTS.md` "work directly on main" vs. a feature branch
@@ -124,9 +129,9 @@ guideline's intent is still satisfied.
   computers whose local files don't sync, so GitHub is the only source of truth."
 - **Prompt:** "Work on a branch."
 - **Resolution:** no conflict in the end. The change was built on the
-  `relationships` branch as the prompt asked, then fast-forwarded into `main` at the
-  user's request, so the six commits now sit directly on `main` with a linear history
-  and `main` is the single source of truth between the two machines — which is the
-  reason `AGENTS.md` gives for the rule. Nothing was pushed with `--force` and no
-  pushed commit was rewritten. Kept as an entry only to record that the branch step
-  happened and left no trace in the history.
+  `relationships` branch as the prompt asked, then merged into `main` at the user's
+  request, so everything sits on `main` and `main` is the single source of truth
+  between the two machines — which is the reason `AGENTS.md` gives for the rule.
+  The merge is a real merge commit, not a fast-forward, because the other machine
+  had pushed eight commits meanwhile; those are reconciled in the same commit.
+  Nothing was pushed with `--force` and no pushed commit was rewritten.

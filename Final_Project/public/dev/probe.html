@@ -258,10 +258,9 @@ const SCENARIOS = {
 
     doc().getElementById("text-discard").click();
     await wait(50);
-    doc().querySelector('.menu-action[data-action="update"]').click();
+    doc().querySelector('.menu-action[data-action="save"]').click();
     await wait(400);
-    say(`dirty after update: ${doc().querySelector('#tabbar .tab[aria-selected="true"]').dataset.dirty}`);
-    say(`finalize enabled: ${!doc().getElementById("app-finalize").disabled}`);
+    say(`dirty after save: ${doc().querySelector('#tabbar .tab[aria-selected="true"]').dataset.dirty}`);
   },
 
   // Activate a looping app, watch the status panel, then stop it.
@@ -354,7 +353,32 @@ const SCENARIOS = {
   },
 
   // The condition-based suggestion: an IF on the first service's return value.
+  // The IoT-DDL declares no `condition` relationship, so this one has to be
+  // defined in the IDE first — which is the point of user-defined relationships.
   async relationshipCondition() {
+    doc().getElementById("relationship-add").click();
+    await wait(50);
+    const form = doc().querySelector("#relationship-dialog form");
+    form.elements.name.value = "Lamp by temperature";
+    form.querySelector('input[name="type"][value="condition"]').checked = true;
+    form.elements.first.value = JSON.stringify({
+      thing: "AT_BoarAirSensor",
+      entity: "ClimateSensor",
+      service: "Read_Temp",
+    });
+    form.elements.second.value = JSON.stringify({
+      thing: "AT_BoarLamp",
+      entity: "Lamp",
+      service: "Lamp_On",
+    });
+    form.requestSubmit();
+    await wait(600);
+    say(`error shown: ${JSON.stringify(doc().querySelector(".dialog-error").textContent)}`);
+    await until(
+      () => [...doc().querySelectorAll("#devices-list .row.relationship")].some((r) => r.textContent.includes("Lamp by")),
+      4000,
+    );
+
     dropService("Read_Temp");
     await wait(0);
     const suggest = () => doc().querySelector(".graph-suggest");

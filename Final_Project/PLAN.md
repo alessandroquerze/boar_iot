@@ -208,9 +208,9 @@ after being moved into a module; "Replace" = same capability, new implementation
 | L18 | The **10 services**: `Calibrate_Sensor`, `Read_Temp(F_or_C)`, `Read_Humidity`, `Fan_On(speed)`, `Fan_Off`, `Read_Fan_Speed`, `Read_Fan_Status`, `Set_Window(angle)`, `Window_Close`, `Read_Window_Position` | Discovered via tweets; reproduced exactly by the simulator |
 | L19 | Service semantics: integer in / `int` or `void` out, out-of-range inputs clamped to the nearest allowed value and the applied value returned, actuator reads report the last commanded value, DHT11 read retried 3× then returns `-1` with status `Successful` | Reproduced by the simulator so apps behave the same with or without hardware |
 | L20 | Atlas **service call** over **TCP 6668**, one JSON per connection: `{"Tweet Type":"Service call","Thing ID":…,"Space ID":…,"Service Name":…,"Service Inputs":"(75)"}` (`"()"` when there are no inputs); reply carries `"Status"` (`Successful`/`Unsuccessful`) and `"Service Result"` (`"No Output"` for `void`) | Port into the Atlas gateway |
-| L21 | Calls must be **spaced** (Atlas pauses after each call) and are read until the thing closes the connection, with a 15 s timeout | Port: calls are serialised per thing with a configurable gap |
+| L21 | Lab 4 Atlas pauses after each call. Replies are read until the thing closes the connection, with a 15 s socket timeout | Calls to the same thing are serialised. The packaged Atlas and IDE omit the legacy pause |
 | L22 | Atlas **tweets** over MQTT, topic root `/Atlas`: `/Multicast/Tweet_ThingIdentity`, `/Multicast/Tweet_EntityIdentity`, `/Multicast/API`, `/Unicast/Interaction`; tweet types `Identity_Thing`, `Identity_Language`, `Identity_Entity`, `Service`, `Relationship` (field shapes in §5.2) | New (R1): this is what the IDE listens to |
-| L23 | The Lab 4 relationships declared in the IoT-DDL (`interfere` between `Fan_On`/`Fan_Off` and between `Set_Window`/`Window_Close`) | Displayed; plus the order-based and condition-based relationships the assignment needs |
+| L23 | The relationships declared in `Atlas_IoTDDL.xml`: two `order` (`Calibrate_Sensor` before `Read_Temp` / `Read_Humidity`) and four `interfere` (`Fan_On`/`Fan_Off`, `Set_Window`/`Window_Close`) | Displayed read-only, exactly as declared — the IDE never invents one. Relationships the Builder cannot express (across entities or things) are defined in the IDE instead (§5.1) |
 | L24 | The Lab 4 **Part II demo app** (`Read_Temp`, `Fan_On`, `Set_Window`) | The acceptance demo: it must be rebuildable in the new IDE, graphically |
 | L25 | Everything works on a LAN with **no internet** (Lab 4 loaded MQTT.js from a CDN — that is fixed here) | All libraries vendored locally |
 
@@ -330,11 +330,11 @@ One object, owned by the server, pushed to the browser on connect and on every c
                                    "first": "Fan_On", "second": "Fan_Off",
                                    "description": "…" }] }],
   "relationships": [
-    { "id": "iot-ddl|AT_BoarAirSensor|Vent after reading|Read_Temp|Fan_On",
-      "name": "Vent after reading", "type": "order", "description": "…",
+    { "id": "iot-ddl|AT_BoarAirSensor|Calibrate before temperature|Calibrate_Sensor|Read_Temp",
+      "name": "Calibrate before temperature", "type": "order", "description": "…",
       "source": "iot-ddl", "resolved": true,
-      "first":  { "thing": "AT_BoarAirSensor", "entity": "ClimateSensor", "service": "Read_Temp" },
-      "second": { "thing": "AT_BoarAirSensor", "entity": "Fan",           "service": "Fan_On" } },
+      "first":  { "thing": "AT_BoarAirSensor", "entity": "ClimateSensor", "service": "Calibrate_Sensor" },
+      "second": { "thing": "AT_BoarAirSensor", "entity": "ClimateSensor", "service": "Read_Temp" } },
     { "id": "user:9e85…", "name": "Lamp follows fan", "type": "order", "description": "…",
       "source": "user", "resolved": true,
       "first":  { "thing": "AT_BoarAirSensor", "entity": "Fan",  "service": "Fan_On" },

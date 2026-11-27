@@ -218,6 +218,13 @@ test("a LOOP needs a body and a positive period", () => {
   assert.match(errorsOf("LOOP EVERY 0s\n  Fan_Off()\nEND")[0], /positive number of seconds/);
 });
 
+test("nothing can follow a LOOP, at the top or inside a branch", () => {
+  assert.match(errorsOf("LOOP EVERY 5s\n  Fan_Off()\nEND\nRUN Fan_On(1)")[0], /^4: nothing can follow a LOOP/);
+  const inBranch = "IF Read_Temp(C) > 28\nDO\n  LOOP EVERY 5s\n    Fan_Off()\n  END\n  Fan_On(1)\nEND";
+  assert.match(errorsOf(inBranch)[0], /^6: nothing can follow a LOOP/);
+  assert.deepEqual(errorsOf("RUN Fan_On(1)\nLOOP EVERY 5s\n  Fan_Off()\nEND"), []);
+});
+
 test("errors carry the line they are on", () => {
   const [error] = validate("RUN Fan_On(75)\nRUN Fan_Off(").errors;
   assert.equal(error.line, 2);

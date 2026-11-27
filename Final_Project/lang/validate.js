@@ -81,6 +81,26 @@ function unexpectedMessage(token) {
 
 function structureErrors(text, ast) {
   const found = [];
+  const afterLoop = (statements) => {
+    const index = statements.findIndex((statement) => statement.kind === "loop");
+    const following = index === -1 ? null : statements[index + 1];
+    if (following) {
+      found.push(
+        diagnostic(text, following.from, following.to, "nothing can follow a LOOP: it runs until the app is stopped"),
+      );
+    }
+  };
+
+  // The graph cannot show a statement after a loop (a loop has no `next`), and
+  // the runtime would never reach it.
+  afterLoop(ast.body);
+  walk(ast, (node) => {
+    if (node.kind === "loop") afterLoop(node.body);
+    if (node.kind === "condition") {
+      afterLoop(node.consequent);
+      afterLoop(node.alternative);
+    }
+  });
 
   walk(ast, (node) => {
     if (node.kind === "condition") {

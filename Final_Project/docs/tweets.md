@@ -127,10 +127,11 @@ from actuators (use the service `Type` for that — see below).
 - `FS name` / `SS name` are the **first** and **second** service of the relationship,
   taken from the IoT-DDL's `Input1` / `Input2`.
 - `Category` is hard-coded to `Cooperative` (`:296`), so it carries no information.
-- `Type` is the free-text `type` tag of the IoT-DDL. Lab 4 only declares
-  `interfere`; the IDE additionally understands **`order`** and **`condition`** —
-  the two kinds the assignment requires — and shows anything else as an
-  uninterpreted relationship.
+- `Type` is the free-text `type` tag of the IoT-DDL. `Atlas_IoTDDL.xml` declares
+  four `interfere` and two `order` relationships, and no `condition` one; the IDE
+  understands **`order`** and **`condition`** — the two kinds the assignment
+  requires — and shows anything else, `interfere` included, as an uninterpreted
+  relationship.
 - **An advertised relationship always links two services of the same thing.**
   The IoT-DDL Builder can only relate services of the *same entity*, so the two
   names are necessarily on the thing that sent the tweet. This limit belongs to
@@ -190,8 +191,8 @@ until the thing closes the connection.
   service or a wrong argument count gives `Unsuccessful`.
 - `Service Result` is `"No Output"` for a `void` service, otherwise the value as
   text — so the orchestrator parses it to a number before comparing (L11).
-- **Atlas pauses after each call** (Lab 4 measured ~3 s; `atlas_demo.cpp` also sleeps
-  100 ms between calls), so the gateway serialises calls per thing with a
-  configurable gap and a 15 s timeout.
+- Lab 4 Atlas paused after each call. The packaged Atlas accepts the next TCP
+  call after closing the previous one. The IDE gateway serialises calls per
+  thing with a 15 s socket timeout.
 - Atlas has no error status for a service *body*, so a failed DHT11 read comes back
   as `-1` with `Status: Successful`. The IDE does not try to hide that.

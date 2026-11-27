@@ -50,7 +50,7 @@
 
   <nav id="menubar" aria-label="App actions">
     <button class="menu-action" data-action="activate" disabled>activate</button>
-    <button class="menu-action" data-action="update" disabled>update</button>
+    <button class="menu-action" data-action="save" disabled>save</button>
     <button class="menu-action" data-action="stop" disabled>stop</button>
     <button class="menu-action" data-action="delete" disabled>delete</button>
   </nav>
@@ -92,9 +92,6 @@
         </span>
       </div>
       <div class="panel-body" id="apps-list"></div>
-      <div class="panel-footer">
-        <button id="app-finalize" class="small-btn" disabled>finalize</button>
-      </div>
     </section>
 
     <section class="panel" data-panel="devices" hidden>
@@ -106,6 +103,8 @@
       <div class="panel-title"><span>settings</span></div>
       <div class="panel-body" id="settings-form"></div>
     </section>
+
+    <div id="sidebar-resizer" class="resizer resizer-v" role="separator" aria-orientation="vertical" aria-label="Ridimensiona pannello laterale" tabindex="0"></div>
   </aside>
 
   <main id="editorarea">
@@ -136,6 +135,7 @@
 
       <!-- Right panel: the text editor, with Apply Changes above it. -->
       <section id="text-pane" aria-label="Text editor">
+        <div id="text-resizer" class="resizer resizer-v resizer-left" role="separator" aria-orientation="vertical" aria-label="Ridimensiona editor di testo" tabindex="0"></div>
         <div id="text-toolbar">
           <button class="small-btn primary" id="text-apply" disabled>Apply Changes</button>
           <button class="small-btn" id="text-discard" disabled>Discard</button>
@@ -152,6 +152,7 @@
 
     <!-- Bottom panel, spanning both editors. -->
     <section id="bottom-panel" aria-label="Console">
+      <div id="bottom-resizer" class="resizer resizer-h" role="separator" aria-orientation="horizontal" aria-label="Ridimensiona pannello inferiore" tabindex="0"></div>
       <div id="bottom-tabs" role="tablist">
         <button class="bottom-tab" data-tab="console" role="tab">console</button>
         <button class="bottom-tab" data-tab="output" role="tab">output</button>

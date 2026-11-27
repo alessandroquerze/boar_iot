@@ -198,7 +198,7 @@ export function addControlBlock(kind) {
       ? { condition: "Read_Temp(C) > 25", astId: newId("if") }
       : { every: "10", astId: newId("lp") };
 
-  addBlock(kind, kind === "condition" ? 3 : 2, data, { x: 90, y: 90 });
+  addBlock(kind, kind === "condition" ? 3 : 1, data, { x: 90, y: 90 });
 }
 
 // A block that nothing leads to is not part of the program, so a new one is

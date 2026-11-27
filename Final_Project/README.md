@@ -9,7 +9,7 @@
 ```bash
 npm install
 npm run build     # grammar -> parser, CodeMirror -> public/vendor/editor.bundle.js
-npm test          # 101 tests, no browser and no hardware needed
+npm test          # 133 tests, no browser and no hardware needed
 npm start -- --simulate      # the Lab 4 thing, simulated: nothing else to set up
 npm start                    # the real space, broker 192.168.8.189:1883
 npm start -- --broker <ip>:1883 --apps /path/to/atlas/working/directory
@@ -225,8 +225,8 @@ Agree on this on day 1–2 so UI and backend can proceed in parallel (UI can sta
   "services": [{ "thing": "AT_BoarAirSensor", "entity": "Fan", "name": "Fan_On", "kind": "Action",
                  "inputs": [{ "name": "speed", "type": "int" }], "output": "int" }],
   "relationships": [{ "id": "…", "name": "…", "type": "order", "source": "iot-ddl", "resolved": true,
-                      "first":  { "thing": "AT_BoarAirSensor", "entity": "ClimateSensor", "service": "Read_Temp" },
-                      "second": { "thing": "AT_BoarAirSensor", "entity": "Fan", "service": "Fan_On" } }]
+                      "first":  { "thing": "AT_BoarAirSensor", "entity": "ClimateSensor", "service": "Calibrate_Sensor" },
+                      "second": { "thing": "AT_BoarAirSensor", "entity": "ClimateSensor", "service": "Read_Temp" } }]
 }
 ```
 

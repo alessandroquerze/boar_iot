@@ -35,7 +35,6 @@ export class AppStore {
       apps.push({
         file: entry,
         name: app?.name ?? entry.slice(0, -EXTENSION.length),
-        finalized: app?.finalized ?? false,
         modified: info.mtime.toISOString(),
       });
     }
@@ -53,7 +52,7 @@ export class AppStore {
    * Save an app. The file name is fixed once: saving again overwrites it
    * silently, so the developer can save as often as they like.
    */
-  async write(rawName, { source = "", layout = {}, finalized = false } = {}) {
+  async write(rawName, { source = "", layout = {} } = {}) {
     await this.ready();
 
     const fileName = fileNameFor(rawName);
@@ -64,7 +63,6 @@ export class AppStore {
       format: "atlas-iot-app",
       version: 1,
       name: appNameOf(fileName),
-      finalized: finalized || Boolean(existing?.finalized),
       created: existing?.created ?? new Date().toISOString(),
       modified: new Date().toISOString(),
       source,

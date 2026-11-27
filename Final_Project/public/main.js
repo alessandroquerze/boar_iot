@@ -16,6 +16,8 @@ import {
 } from "./project.js";
 import { addControlBlock, initGraphEditor, reloadFromModel, showProjectGraph } from "./graph-editor.js";
 import { initTextEditor, setCatalogue, showProject, syncFromModel } from "./text-editor.js";
+import { initResizers } from './resizers.js';
+
 
 /** The space model as last pushed by the server. */
 export let space = { space: {}, things: [] };
@@ -278,6 +280,7 @@ function poll() {
 
 initActivityBar();
 initBottomPanel();
+initResizers();
 initDevicesPanel();
 initSettingsPanel();
 // The two editors are views of one model: a change on either side updates the
@@ -289,7 +292,7 @@ initAppsPanel();
 
 // The menu bar: the four app actions the prompt names, in lowercase.
 const MENU_ACTIONS = {
-  update: () => saveActive(),
+  save: () => saveActive(),
   delete: () => deleteActive(),
   activate: activateActive,
   stop: stopActive,

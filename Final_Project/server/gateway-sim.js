@@ -42,8 +42,9 @@ const ENTITIES = [
   ["Window", "Servo Motor"],
 ];
 
-// The second thing. Its service names do not clash with the air sensor's, so a
-// call that names no thing still resolves to exactly one service.
+// The second thing: another group's Raspberry Pi in the same space. Its service
+// names do not clash with the air sensor's, so a call that names no thing still
+// resolves to exactly one service.
 const LAMP_SERVICES = [
   ["Lamp", "Lamp_On", "Action", [["level", "int"]], ["Lamp_level", "int"]],
   ["Lamp", "Lamp_Off", "Action", [], null],
@@ -52,23 +53,23 @@ const LAMP_SERVICES = [
 
 const LAMP_ENTITIES = [["Lamp", "Dimmable LED Lamp"]];
 
-// Both of the lamp's advertised relationships stay inside the thing, because
-// that is all the IoT-DDL Builder can express. A relationship between the lamp
-// and the air sensor has to be defined in the IDE by hand.
-const LAMP_RELATIONSHIPS = [
-  ["Lamp On interference", "interfere", "Lamp_On", "Lamp_Off", "Turning the lamp on and off should be concurrent"],
-  ["Dim after reading", "condition", "Read_Lamp_Level", "Lamp_On", "Set the level depending on the level read"],
-];
+// The lamp advertises **no** relationships. Its IoT-DDL belongs to the other
+// group and we do not have it, and the same rule applies as below: the simulator
+// never invents a relationship. So anything linking the lamp to the air sensor
+// has to be defined in the IDE by hand — which is exactly the case an advertised
+// relationship cannot express, since the IoT-DDL Builder only relates services
+// of one entity.
+const LAMP_RELATIONSHIPS = [];
 
-// Lab 4's IoT-DDL only declares the two `interfere` relationships. The other two
-// are the order-based and condition-based relationships the assignment asks for;
-// they must be added to the real IoT-DDL before the hardware demo (see
-// docs/tweets.md and README §4).
+// Exactly the relationships declared in Atlas/ConfigurationFiles/Atlas_IoTDDL.xml,
+// entity by entity. The IDE must never show one the IoT-DDL does not declare.
 const RELATIONSHIPS = [
+  ["Calibrate before temperature", "order", "Calibrate_Sensor", "Read_Temp", "Calibrate the sensor before reading the temperature"],
+  ["Calibrate before humidity", "order", "Calibrate_Sensor", "Read_Humidity", "Calibrate the sensor before reading the humidity"],
   ["Fan On interference", "interfere", "Fan_On", "Fan_Off", "Turning on and off the fan should be concurrent"],
   ["Fan Off interference", "interfere", "Fan_Off", "Fan_On", "Turning on and off the fan should be concurrent"],
-  ["Vent after reading", "order", "Read_Temp", "Fan_On", "Read the temperature before driving the fan"],
-  ["Open when hot", "condition", "Read_Temp", "Set_Window", "Open the window depending on the temperature read"],
+  ["Close interference", "interfere", "Window_Close", "Set_Window", "Setting and closing the window should be concurrent"],
+  ["Set interference", "interfere", "Set_Window", "Window_Close", "Setting and closing the window should be concurrent"],
 ];
 
 const RANGES = { Fan_On: [0, 75], Set_Window: [0, 50], Read_Temp: [0, 1], Lamp_On: [0, 100] };

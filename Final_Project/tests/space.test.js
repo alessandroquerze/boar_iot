@@ -116,7 +116,7 @@ test("an entity that can act is an actuator, one that only reports is a sensor",
 
 test("relationships are kept, and repeats do not pile up", () => {
   const space = filledSpace();
-  const relationship = { Name: "Vent after reading", Type: "order", "FS name": "Read_Temp", "SS name": "Fan_On" };
+  const relationship = { Name: "Calibrate before temperature", Type: "order", "FS name": "Calibrate_Sensor", "SS name": "Read_Temp" };
   space.applyTweet(tweet("Relationship", relationship));
   space.applyTweet(tweet("Relationship", relationship));
 
@@ -176,9 +176,16 @@ test("the simulator announces the Lab 4 thing in full", async () => {
   assert.equal(services.length, 10, "Lab 4 has ten services");
   assert.ok(services.includes("Read_Window_Position"));
 
-  // The assignment needs an order-based and a condition-based relationship.
-  const types = thing.relationships.map((relationship) => relationship.type);
-  assert.ok(types.includes("order") && types.includes("condition"));
+  // Exactly the relationships of Atlas_IoTDDL.xml, nothing invented.
+  const names = thing.relationships.map((relationship) => relationship.name).sort();
+  assert.deepEqual(names, [
+    "Calibrate before humidity",
+    "Calibrate before temperature",
+    "Close interference",
+    "Fan Off interference",
+    "Fan On interference",
+    "Set interference",
+  ]);
 });
 
 test("the simulator announces a second thing, so cross-thing apps can be built", async () => {
@@ -196,6 +203,10 @@ test("the simulator announces a second thing, so cross-thing apps can be built",
     "Lamp_On",
     "Read_Lamp_Level",
   ]);
+  // We do not have the other group's IoT-DDL, and the simulator never invents a
+  // relationship, so the lamp advertises none. Anything linking it to the air
+  // sensor has to be defined in the IDE.
+  assert.deepEqual(things[1].relationships, []);
 });
 
 test("a call that names a thing only reaches that thing's services", async () => {
