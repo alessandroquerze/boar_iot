@@ -15,11 +15,14 @@ guideline's intent is still satisfied.
   the virtual space, with all their sensors and actuators and the services each one
   exposes".
 - **Resolution:** two icons. The Devices panel is organised per thing, and inside each
-  thing as **sensors**, **actuators**, **services** and **relationships** sub-groups.
-  So the Things, Services and Relationships content all survives — it is grouped by
-  device instead of by kind, which is also what the prompt's "group each device's
-  sensors, actuators and services together visually" asks for. Services stay in
-  alphabetical order inside each group, as R2 requires.
+  thing as **sensors**, **actuators** and **services** sub-groups, with one
+  **relationships** group for the whole space below them. So the Things, Services and
+  Relationships content all survives — the first two grouped by device instead of by
+  kind, which is also what the prompt's "group each device's sensors, actuators and
+  services together visually" asks for. Services stay in alphabetical order inside
+  each group, as R2 requires. Relationships are the one thing *not* nested under a
+  device, because a user-defined one may link two things and so belongs to neither
+  (see C8).
 
 ## C2 — The guidelines' app actions vs. the prompt's fixed menu bar
 
@@ -91,3 +94,37 @@ guideline's intent is still satisfied.
 - **Resolution:** the content lives in the file the prompt names, and the file
   `AGENTS.md` names is a one-line pointer to it. Both workflows keep working and
   there is only one copy of each document to maintain. See `PLAN.md` §0.
+
+## C8 — Relationships "between services of the same thing" vs. user-defined ones
+
+- **Guideline (R2):** the two supported relationship kinds "are declared in the
+  IoT-DDL between services of the same thing". `docs/tweets.md` says the same, read
+  from the middleware: a `Relationship` tweet carries only `FS name` / `SS name`, so
+  both services necessarily belong to the thing that sent it.
+- **Prompt (instructor clarification):** the IoT-DDL Builder only lets you relate
+  services of the **same entity**, and Atlas advertises those relationships without
+  ever executing them. The IDE must keep listening for them *and* let the programmer
+  define their own relationships between **any two services** — different entities,
+  and different things.
+- **Resolution:** both, in one list, told apart by a `source` field. Advertised
+  relationships (`source: "iot-ddl"`) keep the guideline's limit exactly: they are
+  re-learned from the tweets on every scan, they never leave their thing, and they
+  are **read-only** — `DELETE` answers 403. User relationships (`source: "user"`)
+  may link any two discovered services, are restricted to the two kinds R2 names
+  (`order`, `condition`), and are saved in `relationships.json` in the Atlas working
+  directory so they survive a restart. The guideline's intent is untouched: neither
+  kind executes anything — a relationship only guides the developer while an `.iot`
+  app is built, and `runtime.js` does not read them. Recorded because the "same
+  thing" sentence now describes **only** the advertised half.
+  See `PLAN.md` §5.1, §5.4, §6.2 and decision D4.
+
+## C9 — `AGENTS.md` "work directly on main" vs. a feature branch
+
+- **Guideline (`AGENTS.md`):** "Work directly on `main`. The repo is used from two
+  computers whose local files don't sync, so GitHub is the only source of truth."
+- **Prompt:** "Work on a branch."
+- **Resolution:** this change was built on the `relationships` branch, as asked.
+  Nothing else about the workflow changed, and the branch is meant to be merged into
+  `main` as soon as it is reviewed, so `main` stays the source of truth between the
+  two machines — which is the reason `AGENTS.md` gives for the rule. Nothing was
+  pushed with `--force` and no pushed commit was rewritten.

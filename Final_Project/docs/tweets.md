@@ -130,10 +130,42 @@ from actuators (use the service `Type` for that — see below).
 - `Type` is the free-text `type` tag of the IoT-DDL. Lab 4 only declares
   `interfere`; the IDE additionally understands **`order`** and **`condition`** —
   the two kinds the assignment requires — and shows anything else as an
-  uninterpreted relationship. Relationships always link two services of the
-  **same thing**.
+  uninterpreted relationship.
+- **An advertised relationship always links two services of the same thing.**
+  The IoT-DDL Builder can only relate services of the *same entity*, so the two
+  names are necessarily on the thing that sent the tweet. This limit belongs to
+  the tweet, not to the IDE: a relationship the developer defines in the IDE may
+  link **any two discovered services, on any two things** (see below).
+- The tweet carries only `FS name` / `SS name`, never an entity. Which entity
+  owns a service is therefore resolved in `space.js` **when the state is
+  serialised**, not when the tweet arrives, because a `Relationship` tweet can
+  reach the IDE before the `Service` tweet it names.
 - Relationships are also emitted a second way (`:378-393`) for *unbounded* services;
   the shape is identical.
+
+### Relationships the developer defines
+
+Atlas **advertises** relationships but never executes them, and neither does the
+IDE: a relationship only guides the developer while an `.iot` app is built
+(`runtime.js` is untouched by all of this). So the IDE keeps listening for
+`Relationship` tweets at start-up *and* lets the developer add their own.
+
+| | advertised | user-defined |
+|---|---|---|
+| `source` in the state | `iot-ddl` | `user` |
+| where it comes from | `Relationship` tweets | the Devices panel's *+ add relationship* dialog |
+| where it is stored | nowhere: re-learned on every scan | `relationships.json` in the Atlas working directory (`--apps`), so it survives a restart |
+| which things | one thing only (above) | any two discovered services, two different things included |
+| which types | whatever the IoT-DDL says, e.g. `interfere` | only `order` and `condition` |
+| can be deleted | **no**, it belongs to the thing's IoT-DDL | yes |
+
+Both kinds are serialised into one top-level `relationships` array
+(`PLAN.md` §5.1). An entry whose endpoint is not currently discovered — the
+thing is offline — is marked `resolved: false` and shown greyed out rather than
+dropped, so nothing silently disappears from the view. The editor only offers
+`order` and `condition` relationships as connection suggestions, and skips
+unresolved ones; the validation rules for a user-defined one are in
+`server/relationships.js`.
 
 ## Service calls — `API_Generator.cpp:963-985`, and Lab 4 `atlas_demo.cpp`
 

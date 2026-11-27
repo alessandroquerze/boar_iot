@@ -97,7 +97,7 @@ These come from reading the uploaded code; they should be resolved in Phase 0.
 5. **Hardware constants disagree between files:** `WINDOW_MAX_ANGLE` is 175 in `main.cpp` but 50 in the XML and in `atlas_demo.cpp`; servo PWM constants (`SERVO_CLOSED_PWM` 500 vs 150, `SERVO_TICKS_180` 10 vs 200) differ too. Test on the real servo and keep **one** set of values everywhere.
 6. **No per-thing routing.** `call` is a single broadcast topic with no target thing; with several RPis they would all execute the same call. Calls must carry/route by Thing ID.
 7. **Naming is inconsistent:** `RPi-1` (catalogue) vs `RPi1` (default in `app.js`, grammar help) vs `AT_BoarAirSensor` (Atlas Thing ID). Pick one qualifier scheme (§7).
-8. **Relationships:** the XML only contains `interfere` relationships (Fan, Window). The assignment needs **order-based** and **condition-based** relationships, defined in the IoT-DDL builder (same-thing services only). `ClimateSensor` has none.
+8. **Relationships:** the XML only contains `interfere` relationships (Fan, Window). The assignment needs **order-based** and **condition-based** relationships. The IoT-DDL Builder can only relate services of the *same entity*, and Atlas advertises those relationships without ever executing them — so the IDE both listens for them (read-only) and lets the developer define their own between any two discovered services, across things included. See `docs/tweets.md` and `PLAN.md` §5.1.
 9. **`index.html` loads MQTT.js from `unpkg.com`.** The lab network (`GL-SFT1200`, `192.168.8.x`) may have no internet → **vendor all libraries locally** (also needed on demo day).
 10. The XML contains the Wi-Fi passcode in clear text — keep credentials out of the public repo / report screenshots.
 
@@ -127,6 +127,9 @@ Priority: **M** = must (graded core), **S** = should, **C** = could (only if eve
 | 2.3 | **Things** tab: info card for each thing (one per RPi of the group) | M |
 | 2.4 | **Services** tab: services of each thing in **alphabetical order**, one thing after the other. Show name, inputs, output | M |
 | 2.5 | **Relationships** tab: all relationships heard, any order (order-based and condition-based must be visible) | M |
+| 2.5a | The advertised (IoT-DDL) relationships are **read-only**: Atlas owns them, the IDE refuses to delete one | M |
+| 2.5b | The developer can **define their own** `order` / `condition` relationships between **any two discovered services**, two different things included — what the IoT-DDL Builder cannot express | M |
+| 2.5c | User relationships are saved in `relationships.json` in the Atlas working directory and **survive a restart**; an endpoint whose thing is offline is shown greyed out, never dropped | M |
 | 2.6 | Services split into *Sensor-type* (`Type=Report`) and *Actuator-type* (`Type=Action`) — trivial from the IoT-DDL | S |
 | 2.7 | Relationships as a graph (simple SVG node-link, vendored, no CDN) | C |
 | 2.8 | User-assigned images/skins for things, services, apps (stored in the IDE, not in IoT-DDL) | C |
@@ -137,7 +140,7 @@ Priority: **M** = must (graded core), **S** = should, **C** = could (only if eve
 |---|---|---|
 | 3.1 | Text editor reusing the Lab 4 grammar (§7), with live syntax check and error messages | M |
 | 3.2 | **Service palette**: pick one or more discovered services (grouped by thing/type); click/double-click inserts a call template with argument placeholders | M |
-| 3.3 | **Relationship guidance:** after selecting a service, show relationships that involve it ("can follow…", "condition on…") and insert the matching `THEN` / `IF…DO…END` snippet | M |
+| 3.3 | **Relationship guidance:** dropping a service offers the relationships that start at it — `order` adds a `THEN` edge, `condition` an `IF` on its return value with a placeholder. Advertised and user-defined alike; unresolved ones skipped; generated calls always qualified `Thing.Service(…)` | M |
 | 3.4 | Support Type 1 (ordered set), Type 2 (order-based `THEN`), Type 3 (condition-based `IF/DO/ELSE/END`), composed sequentially | M |
 | 3.5 | **Clear** the editor | M |
 | 3.6 | **Finalize:** validate (parses + all services exist + arg counts match) → ask for an app name → add to Apps list and save to the working directory | M |
@@ -221,9 +224,17 @@ Agree on this on day 1–2 so UI and backend can proceed in parallel (UI can sta
                "address": "192.168.8.189", "lastSeen": "…", "entities": ["ClimateSensor","Fan","Window"] }],
   "services": [{ "thing": "AT_BoarAirSensor", "entity": "Fan", "name": "Fan_On", "kind": "Action",
                  "inputs": [{ "name": "speed", "type": "int" }], "output": "int" }],
-  "relationships": [{ "thing": "AT_BoarAirSensor", "name": "…", "type": "…", "from": "…", "to": "…" }]
+  "relationships": [{ "id": "…", "name": "…", "type": "order", "source": "iot-ddl", "resolved": true,
+                      "first":  { "thing": "AT_BoarAirSensor", "entity": "ClimateSensor", "service": "Read_Temp" },
+                      "second": { "thing": "AT_BoarAirSensor", "entity": "Fan", "service": "Fan_On" } }]
 }
 ```
+
+`relationships` is one list for the whole space: `source: "iot-ddl"` for the ones
+advertised in `Relationship` tweets (read-only, same thing only) and
+`source: "user"` for the ones defined in the IDE (any two discovered services,
+saved in `relationships.json`). `resolved: false` marks an endpoint whose thing is
+not in the space right now. The shipped shape is in `PLAN.md` §5.1.
 
 ### 6.4 Backend API (proposal)
 
@@ -285,7 +296,7 @@ Assign an owner to each workstream (names left blank — group size not fixed he
 - [ ] 0.2 **Capture real Atlas tweets** (all types) with `mosquitto_sub`; document fields and topics in `docs/tweets.md`
 - [ ] 0.3 Verify all RPis are wired and running; run `atlas_demo.cpp` against each (hardware smoke test)
 - [ ] 0.4 Fix `main.cpp` compile error; reconcile servo/fan constants with real hardware (§4 #4–5)
-- [ ] 0.5 Add order-based and condition-based relationships (and the other needed metadata) in the IoT-DDL builder; regenerate/redeploy
+- [ ] 0.5 Add order-based and condition-based relationships (and the other needed metadata) in the IoT-DDL builder; regenerate/redeploy. No longer a blocker: the IDE can define its own (§5, feature 2.5b), so this only affects the *advertised* half of the Relationships view
 - [ ] 0.6 Write the §6.3 model contract + a `fixtures/space.json` example
 - [ ] 0.7 Vendor all JS libraries; confirm IDE works with **no internet**
 
@@ -351,7 +362,7 @@ Phases 1–3 overlap on purpose: the model contract (§6.3) lets the UI and back
 | Area | Check |
 |---|---|
 | Discovery | Start IDE → freeze overlay → all RPis/entities/services appear; restart a thing → model updates without duplicates |
-| Tabs | Services alphabetical per thing; Relationships show both order-based and condition-based; Apps empty on a clean working dir |
+| Tabs | Services alphabetical per thing; Relationships show both order-based and condition-based, advertised and user-defined; Apps empty on a clean working dir |
 | Editor | Each of Type 1 / 2 / 3 apps runs; nested `IF`, `ELSE`, `AND/OR` still behave as in Lab 4; syntax errors are readable; unknown service or wrong argument count is rejected |
 | Save | `x` → `x.iot`; `x.ext` → `x.ext.iot`; `x.iot` → `x.iot`; second save overwrites silently; Save is unavailable outside the editor |
 | Manager | Restart IDE → apps from working dir are listed; double-click opens; Activate → status row with start time; Stop → stopped; finite app → Completed and not stoppable; Delete removes the file; status panel empty after restart |

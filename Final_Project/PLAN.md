@@ -274,10 +274,11 @@ Each library is recorded in `README.md` with its licence and the reason for it, 
 | `package.json` | scripts and the four dependencies |
 | `build.mjs` | grammar → `lang/iot.parser.js`; bundle → `public/vendor/editor.bundle.js` |
 | `server/index.js` | HTTP entry point: static files, REST routes, the SSE stream |
-| `server/space.js` | the space model: things, entities, services, relationships; merges tweets, detects "discovery finished" |
+| `server/space.js` | the space model: things, entities, services, relationships (advertised + user, §5.1); merges tweets, detects "discovery finished" |
 | `server/gateway-atlas.js` | real gateway: MQTT tweet subscription + service calls over TCP 6668 |
-| `server/gateway-sim.js` | simulated gateway: replays the Lab 4 thing (L17–L19) so the IDE runs with no hardware |
+| `server/gateway-sim.js` | simulated gateway: replays the Lab 4 thing (L17–L19) and a second thing, `AT_BoarLamp`, so cross-thing apps can be built with no hardware |
 | `server/apps.js` | the Atlas working directory: list, read, write, delete `.iot`, name and extension rules |
+| `server/relationships.js` | the developer's own relationships: `relationships.json` in the same directory, plus the rules a new one has to satisfy |
 | `server/runtime.js` | run life cycle: activate, stop, `Active`/`Stopped`/`Completed`, start time, log fan-out |
 | `lang/iot.grammar` | the Lezer grammar of the composition language (source of truth for syntax) |
 | `lang/iot.parser.js`, `lang/iot.terms.js` | generated parser (committed; rebuilt by `npm run build`) |
@@ -292,8 +293,9 @@ Each library is recorded in `README.md` with its licence and the reason for it, 
 | `public/main.js` | bootstrap, project tabs, menu actions, SSE subscription |
 | `public/project.js` | one open project: its AST, both editor states, console, dirty/lock flags |
 | `public/panel-apps.js` | Apps side panel: list, open, save, finalize, delete |
-| `public/panel-devices.js` | Devices side panel |
-| `public/graph-editor.js` | Drawflow wiring, lock/blur, change events |
+| `public/panel-devices.js` | Devices side panel, including the relationships group and the dialog that adds one |
+| `public/graph-editor.js` | Drawflow wiring, lock/blur, change events, the drop-time connect suggestions |
+| `public/relationship-guidance.js` | which relationships guide a dropped service and the text a suggestion generates (no DOM, so it is unit-tested) |
 | `public/text-editor.js` | CodeMirror view, highlight decorations, Apply Changes |
 | `public/bottom-panel.js` | console (validation + output) and the app status panel |
 | `public/settings.js` | settings, incl. the highlighting switch |
@@ -326,12 +328,40 @@ One object, owned by the server, pushed to the browser on connect and on every c
                                   "keywords": […], "description": "…" }] }],
                "relationships": [{ "name": "Fan On interference", "type": "interfere",
                                    "first": "Fan_On", "second": "Fan_Off",
-                                   "description": "…" }] }]
+                                   "description": "…" }] }],
+  "relationships": [
+    { "id": "iot-ddl|AT_BoarAirSensor|Vent after reading|Read_Temp|Fan_On",
+      "name": "Vent after reading", "type": "order", "description": "…",
+      "source": "iot-ddl", "resolved": true,
+      "first":  { "thing": "AT_BoarAirSensor", "entity": "ClimateSensor", "service": "Read_Temp" },
+      "second": { "thing": "AT_BoarAirSensor", "entity": "Fan",           "service": "Fan_On" } },
+    { "id": "user:9e85…", "name": "Lamp follows fan", "type": "order", "description": "…",
+      "source": "user", "resolved": true,
+      "first":  { "thing": "AT_BoarAirSensor", "entity": "Fan",  "service": "Fan_On" },
+      "second": { "thing": "AT_BoarLamp",      "entity": "Lamp", "service": "Lamp_On" } }]
 }
 ```
 
 `role` is derived from the services' Atlas `Type`: `Report` → **sensor**, `Action` →
 **actuator** (R2's optional split, which the prompt needs for the Devices panel).
+
+The top-level **`relationships`** array is the Relationships view: the advertised
+ones (`source: "iot-ddl"`, kept per thing above and flattened here) followed by the
+developer's own (`source: "user"`, owned by `server/relationships.js`). Three
+assumptions, also recorded in `docs/tweets.md` and `README` §5:
+
+- **user relationships persist across restarts** — they are saved to
+  `relationships.json` in the Atlas working directory (`--apps`);
+- **they may link services on two different things**, which an advertised one
+  never can, because the IoT-DDL Builder only relates services of the same entity;
+- **advertised relationships are read-only**: Atlas owns them, so the IDE refuses
+  to delete one (HTTP 403).
+
+Endpoints are resolved to `(thing, entity, service)` **when the state is
+serialised**, because a `Relationship` tweet can arrive before the `Service` tweet
+it names. `resolved` is `false` when an endpoint is not currently discovered; such
+an entry is kept and shown greyed out, never dropped. Nothing here executes:
+relationships only guide the developer (§6.2), and `runtime.js` ignores them.
 
 ### 5.2 Tweets to parse (field names taken from the Lab 4 middleware source)
 
@@ -359,6 +389,36 @@ The server reports `discovery: "scanning"` until no new tweet has arrived for
 The IDE shows a blocking "Scanning smart space…" overlay while scanning
 (guidelines R1 note). Discovery keeps running afterwards; a thing that goes silent
 for longer than `staleMs` is marked stale in the Devices panel.
+
+### 5.4 Adding a relationship
+
+`server/relationships.js` owns `relationships.json` and the rules. A missing or
+corrupt file means an empty list, not a crash.
+
+| Route | Answer |
+|---|---|
+| `POST /api/relationships` | `201` with the stored relationship, or `400 { error }` |
+| `DELETE /api/relationships/:id` | `204`; `403` for an advertised one; `404` if unknown |
+| `GET /api/relationships` | the same list `GET /api/state` carries, for convenience |
+
+A change is pushed to every browser as a new `state` event, because the two kinds
+are one list in the UI. The rules, each with a message meant to be shown as it is:
+
+1. a short, non-empty name (≤ 40 characters);
+2. the type is `order` or `condition` — nothing else can be user-defined;
+3. both ends are given, and are not the same service twice;
+4. both ends name a service some discovered thing actually offers;
+5. for `condition`, the first service has a non-`void` output, since the type
+   compares its return value;
+6. no duplicate — same type and same two endpoints — of any relationship already
+   known, advertised ones included.
+
+The entity of each end is resolved from the space rather than taken from the
+browser, so the stored record is the thing's own. The dialog that drives this
+(name, type as radios with a one-line explanation of each, two service menus
+grouped by thing and entity with `<optgroup>`, optional description) lives in
+`public/panel-devices.js`; it shows the server's message inline and stays open, and
+the button that opens it is disabled during the start-up freeze.
 
 ---
 
@@ -425,8 +485,30 @@ synchronisation mechanism.
 So R3's three types are exactly: a chain of `next` edges (Type 1), an `ok` edge
 (Type 2), a `condition` node (Type 3) — and they compose because every output can
 lead into any node. Services are dragged in from the Devices panel; when a service is
-dropped, the relationships that mention it are offered as a one-click "connect"
-suggestion (R3's "with the guidance of relationships").
+dropped, the relationships that start at it are offered as a one-click "connect"
+suggestion (R3's "with the guidance of relationships"):
+
+| Relationship | What the suggestion adds |
+|---|---|
+| `order` | a block for the second service, joined by the dropped block's `ok` port — a `THEN` edge |
+| `condition` | a `condition` block testing the first service's return value against a **placeholder** value, with a block for the second service in its `then` branch |
+| anything else (`interfere`) | nothing: it is shown in the Relationships view but never offered |
+
+The rules live in `public/relationship-guidance.js`, which has no DOM in it and is
+unit-tested. Three details:
+
+- matching is on `(thing, service)`, so the same service name on another thing does
+  not pull in a relationship that belongs elsewhere;
+- a relationship with `resolved: false` is skipped — the block it would add could
+  not be called;
+- advertised and user-defined relationships are treated alike, and generated calls
+  are **always written as `Thing.Service(…)`**. That covers the cross-thing case a
+  user-defined relationship can create, and matches the service blocks, which print
+  the thing too; a bare service name would be ambiguous as soon as two things offer
+  it.
+
+A suggestion only writes a program the developer could have drawn by hand. Nothing
+in `runtime.js` reads relationships.
 
 ### 6.3 `.iot` file format
 
@@ -541,7 +623,7 @@ directions are one lookup in the id ↔ range maps built in §7.1.
 │  │      ClimateSensor │   └──────┘   └──────────┘         │               │   │
 │  │    ▾ actuators     │                                   │ CodeMirror 6  │   │
 │  │      Fan · Window  │                                   │               │   │
-│  │    ▾ relationships │                                   │               │   │
+│  │  ▾ relationships  +│                                   │               │   │
 │  ├────────────────────┼───────────────────────────────────┴───────────────┤   │
 │  │                    │ CONSOLE | OUTPUT | STATUS                   ⌫  ⌃  │   │ ← bottom panel
 │  │                    │ 3:6  expected DO after IF, got "RUN …"            │   │
@@ -558,9 +640,16 @@ directions are one lookup in the id ↔ range maps built in §7.1.
   Double-click opens it in a new project tab, in both editors. Right-click →
   delete/rename. A *new app* button at the top.
 * **Devices panel** — one collapsible group per discovered thing, and inside it
-  **sensors**, **actuators**, **services** and **relationships** sub-groups, so each
-  device's parts are visually together as the prompt asks. Services are listed
-  alphabetically (R2) and are the drag source for the graphical editor.
+  **sensors**, **actuators** and **services** sub-groups, so each device's parts are
+  visually together as the prompt asks. Services are listed alphabetically (R2) and
+  are the drag source for the graphical editor. Below the things, **one
+  `relationships` group for the whole space**: a user-defined relationship may link
+  two things and so belongs to no single device. Each row reads
+  `Entity.Service → Entity.Service` (prefixed with the thing when the two ends are on
+  different things) with a type badge and a source badge (*IoT-DDL* / *user*); an
+  unresolved row is greyed out, and a user row carries a delete icon. A
+  *+ add relationship* button opens the dialog of §5.4, disabled while the start-up
+  scan is still running.
 * **Tab bar** — one tab per open project, dirty marker, middle-click to close,
   warn on close when unsaved.
 * **Bottom panel** — tabbed: **Console** (validation errors, the prompt's
@@ -606,12 +695,12 @@ directions are one lookup in the id ↔ range maps built in §7.1.
 | R2 space meta information | the meta bar |
 | R2 Things / Services / Relationships tabs | folded into the **Devices** panel, because the prompt fixes the activity bar to two icons — logged as conflict C1 |
 | R2 services alphabetical, per thing, sensor/actuator split | `panel-devices.js` sorts by name inside each group and derives the role from the Atlas service `Type` |
-| R2 relationships shown | inside each device's group, and offered as connection suggestions in the graphical editor (§6.2) |
+| R2 relationships shown | in one space-level `relationships` group in the Devices panel (§8), and offered as connection suggestions in the graphical editor (§6.2). The developer can add their own `order`/`condition` relationships between any two services, including across things (§5.1) |
 | R2 Apps tab initially empty, offers new or upload | the Apps panel is empty when the working directory is; it has a *new app* button and opens existing apps on double-click |
 | R2/R4 SAVE APP only inside the editor, `.iot` rules, repeated saves | `update` is enabled only with a project open; `server/apps.js` enforces `name` → `name.iot` and `name.ext` → `name.ext.iot`, and overwrites silently once the file name is known |
 | R3 editor, GUI + text | the two synchronised editors |
 | R3 Types 1, 2, 3 composable sequentially | §6, §6.2 |
-| R3 relationship guidance | §6.2 |
+| R3 relationship guidance | §6.2, driven by the one `relationships` list of §5.1 — advertised and user-defined alike |
 | R3 Clear and Finalize | decision D2: *clear* in the graphical editor's toolbar, *finalize* in the Apps panel acting on the active project |
 | R4 UPLOAD APP, working directory scanned at start | `server/apps.js` scans the configured directory at boot and on change |
 | R4 working directory fixed but changeable | a setting, persisted server-side |
@@ -684,7 +773,7 @@ so this is a record, not a change list.
 | D1 | **Node.js server + plain-JavaScript browser IDE**, because TCP 6668, the Atlas working directory and a run life cycle that outlives the tab are all impossible in a browser alone. **No hardware is available from this machine**, so both gateways are built and everything is developed against `gateway-sim.js`, which reproduces the Lab 4 thing exactly (L17–L19). Plan steps 1 and 11 need the user's Pi; until then §5.2's tweet fields stay "read from the middleware source, unconfirmed" |
 | D2 | `update` = **SAVE APP**. `activate`/`stop`/`delete` = R4 ACTIVATE/STOP/DELETE. UPLOAD APP = double-click in the Apps panel; *new app* = `+` in the Apps panel; *finalize* = Apps-panel button on the active project; *clear* = graphical-editor toolbar |
 | D3 | One bottom panel, three tabs: **Console** (validation errors, default), **Output** (Lab 4 execution log), **Status** (R4 running apps) |
-| D4 | Relationships live in a `relationships` sub-group per device **and** drive connection suggestions in the graphical editor |
+| D4 | Relationships live in **one space-level `relationships` group** in the Devices panel **and** drive connection suggestions in the graphical editor. Revised after the instructor's clarification: advertised (IoT-DDL) relationships are read-only and same-thing only, while the developer may define `order`/`condition` relationships between any two discovered services, two different things included. The developer's own ones are saved in `relationships.json` beside the apps and survive a restart. Nothing executes them — see §5.1, §5.4, §6.2 |
 | D5 | A device is an Atlas **thing**; its **entities** are grouped sensor/actuator from the service `Type` (`Report`/`Action`); services listed alphabetically under their entity |
 | D6 | **Lezer grammar** for the text syntax; Lab 4's **orchestrator** is ported, its regex parser retired, its grammar test cases reused |
 | D7 | The Lab 4 language is kept; the only change is the **Thing ID qualifier** (unqualified still legal when unambiguous) |
