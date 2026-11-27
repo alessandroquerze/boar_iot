@@ -3,6 +3,16 @@
 // Tweets are merged by (thing, entity, service) so a thing that re-announces
 // itself updates its entry instead of duplicating it. The shapes of the five
 // discovery tweets are documented in docs/tweets.md.
+//
+// Relationships come from two places and are serialised into one list:
+//   * advertised — Relationship tweets. The IoT-DDL Builder can only relate two
+//     services of the same entity, so an advertised relationship never leaves
+//     its thing. Atlas never executes them; they are read-only here.
+//   * user-defined — written in the IDE and owned by server/relationships.js,
+//     which persists them across restarts. They may link any two discovered
+//     services, including services on two different things.
+// Neither kind executes anything: they guide the developer while an .iot app is
+// being built.
 
 import { EventEmitter } from "node:events";
 
@@ -21,6 +31,8 @@ export class Space extends EventEmitter {
     this.broker = "disconnected";
     this.discovery = "scanning";
     this.things = new Map();
+    // Filled from server/relationships.js; empty until it has been loaded.
+    this.userRelationships = [];
 
     this.quietMs = quietMs;
     this.maxScanMs = maxScanMs;
@@ -62,6 +74,16 @@ export class Space extends EventEmitter {
   setBroker(status) {
     if (this.broker === status) return;
     this.broker = status;
+    this.changed();
+  }
+
+  /**
+   * Hand the space the user-defined relationships the store holds. Called once
+   * at start-up and after every add or delete, so one change broadcast carries
+   * both kinds of relationship.
+   */
+  setUserRelationships(list) {
+    this.userRelationships = list;
     this.changed();
   }
 
@@ -206,8 +228,72 @@ export class Space extends EventEmitter {
         stale: thing.lastSeen ? now - Date.parse(thing.lastSeen) > STALE_MS : false,
         entities: thing.entities.map((entity) => ({ ...entity, role: roleOf(entity) })),
       })),
+      relationships: this.relationshipList(),
     };
   }
+
+  /**
+   * Every relationship the IDE knows, advertised first. Endpoints are resolved
+   * here rather than when the tweet arrives, because a Relationship tweet can
+   * reach us before the Service tweet it names — the entity is only knowable
+   * once the service has been heard.
+   */
+  relationshipList() {
+    const advertised = [];
+    for (const thing of this.things.values()) {
+      for (const relationship of thing.relationships) {
+        advertised.push({
+          id: advertisedId(thing.id, relationship),
+          name: relationship.name,
+          type: relationship.type,
+          description: relationship.description,
+          source: "iot-ddl",
+          first: this.endpoint(thing.id, relationship.first),
+          second: this.endpoint(thing.id, relationship.second),
+          resolved: false, // set below, once both endpoints are known
+        });
+      }
+    }
+
+    const user = this.userRelationships.map((relationship) => ({
+      ...relationship,
+      source: "user",
+      // Re-resolve the entity each time: the thing may have been rediscovered
+      // under a different entity, or not be in the space at all right now.
+      first: this.endpoint(relationship.first.thing, relationship.first.service, relationship.first.entity),
+      second: this.endpoint(relationship.second.thing, relationship.second.service, relationship.second.entity),
+      resolved: false,
+    }));
+
+    // An endpoint whose thing is offline keeps its last known entity and is
+    // marked unresolved; it is never dropped, so nothing silently disappears.
+    for (const relationship of [...advertised, ...user]) {
+      relationship.resolved = relationship.first.found && relationship.second.found;
+      delete relationship.first.found;
+      delete relationship.second.found;
+    }
+    return [...advertised, ...user];
+  }
+
+  /** Where a service lives: the entity that advertised it, if we have heard it. */
+  endpoint(thingId, serviceName, fallbackEntity = "") {
+    const thing = this.things.get(thingId);
+    for (const entity of thing?.entities ?? []) {
+      if (entity.services.some((service) => service.name === serviceName)) {
+        return { thing: thingId, entity: entity.id, service: serviceName, found: true };
+      }
+    }
+    return { thing: thingId, entity: fallbackEntity, service: serviceName, found: false };
+  }
+}
+
+/**
+ * A stable id for an advertised relationship. There is no id in the tweet, so
+ * it is derived from the fields space.js already merges on, which means the id
+ * survives a thing re-announcing itself.
+ */
+function advertisedId(thingId, relationship) {
+  return ["iot-ddl", thingId, relationship.name, relationship.first, relationship.second].join("|");
 }
 
 /** An entity that can act is an actuator; one that only reports is a sensor. */
