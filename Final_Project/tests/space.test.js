@@ -165,7 +165,7 @@ test("the simulator announces the Lab 4 thing in full", async () => {
   const space = new Space({});
   const gateway = createSimGateway({ onTweet: (t) => space.applyTweet(t) });
   gateway.start();
-  await delay(1500);
+  await delay(2200);
   gateway.stop();
 
   const [thing] = space.toJSON().things;
@@ -179,6 +179,34 @@ test("the simulator announces the Lab 4 thing in full", async () => {
   // The assignment needs an order-based and a condition-based relationship.
   const types = thing.relationships.map((relationship) => relationship.type);
   assert.ok(types.includes("order") && types.includes("condition"));
+});
+
+test("the simulator announces a second thing, so cross-thing apps can be built", async () => {
+  const space = new Space({});
+  const gateway = createSimGateway({ onTweet: (t) => space.applyTweet(t) });
+  gateway.start();
+  await delay(2200);
+  gateway.stop();
+
+  const { things } = space.toJSON();
+  assert.deepEqual(things.map((thing) => thing.id), ["AT_BoarAirSensor", "AT_BoarLamp"]);
+  assert.deepEqual(things[1].entities.map((entity) => entity.id), ["Lamp"]);
+  assert.deepEqual(things[1].entities[0].services.map((service) => service.name), [
+    "Lamp_Off",
+    "Lamp_On",
+    "Read_Lamp_Level",
+  ]);
+});
+
+test("a call that names a thing only reaches that thing's services", async () => {
+  const gateway = createSimGateway({ callGapMs: 0 });
+
+  assert.equal((await gateway.call({ thing: "AT_BoarLamp", service: "Lamp_On", args: [60] })).result, 60);
+  assert.equal(
+    (await gateway.call({ thing: "AT_BoarAirSensor", service: "Lamp_On", args: [60] })).description,
+    "Unknown Service",
+    "the air sensor does not offer the lamp's services",
+  );
 });
 
 test("the simulator keeps Lab 4's service behaviour", async () => {

@@ -7,8 +7,14 @@
 // behaviour from Lab4/PartOne/device/main.cpp: inputs are clamped to the nearest
 // allowed value rather than refused, and the actuators report the last value
 // they were commanded, because neither can be read back from the hardware.
+//
+// A second thing, AT_BoarLamp, stands for another group's Raspberry Pi in the
+// same space. It is not Lab 4 hardware: it is here so an app calling services
+// on two things, and a user-defined relationship across things, can be built
+// and run without the real space.
 
 const THING = "AT_BoarAirSensor";
+const LAMP_THING = "AT_BoarLamp";
 const SPACE = "BoarSmartSpace";
 
 /** How long the thing waits after each call, as the real Atlas does. */
@@ -36,6 +42,24 @@ const ENTITIES = [
   ["Window", "Servo Motor"],
 ];
 
+// The second thing. Its service names do not clash with the air sensor's, so a
+// call that names no thing still resolves to exactly one service.
+const LAMP_SERVICES = [
+  ["Lamp", "Lamp_On", "Action", [["level", "int"]], ["Lamp_level", "int"]],
+  ["Lamp", "Lamp_Off", "Action", [], null],
+  ["Lamp", "Read_Lamp_Level", "Report", [], ["Lamp_level", "int"]],
+];
+
+const LAMP_ENTITIES = [["Lamp", "Dimmable LED Lamp"]];
+
+// Both of the lamp's advertised relationships stay inside the thing, because
+// that is all the IoT-DDL Builder can express. A relationship between the lamp
+// and the air sensor has to be defined in the IDE by hand.
+const LAMP_RELATIONSHIPS = [
+  ["Lamp On interference", "interfere", "Lamp_On", "Lamp_Off", "Turning the lamp on and off should be concurrent"],
+  ["Dim after reading", "condition", "Read_Lamp_Level", "Lamp_On", "Set the level depending on the level read"],
+];
+
 // Lab 4's IoT-DDL only declares the two `interfere` relationships. The other two
 // are the order-based and condition-based relationships the assignment asks for;
 // they must be added to the real IoT-DDL before the hardware demo (see
@@ -47,11 +71,11 @@ const RELATIONSHIPS = [
   ["Open when hot", "condition", "Read_Temp", "Set_Window", "Open the window depending on the temperature read"],
 ];
 
-const RANGES = { Fan_On: [0, 75], Set_Window: [0, 50], Read_Temp: [0, 1] };
+const RANGES = { Fan_On: [0, 75], Set_Window: [0, 50], Read_Temp: [0, 1], Lamp_On: [0, 100] };
 
 export function createSimGateway({ onTweet, callGapMs = CALL_GAP_MS } = {}) {
   // What the actuators were last told to do: Lab 4 keeps this in /tmp files.
-  const state = { fanSpeed: 0, windowAngle: 0, startedAt: Date.now() };
+  const state = { fanSpeed: 0, windowAngle: 0, lampLevel: 0, startedAt: Date.now() };
   const timers = [];
   let busyUntil = 0;
 
@@ -69,13 +93,15 @@ export function createSimGateway({ onTweet, callGapMs = CALL_GAP_MS } = {}) {
     timers.length = 0;
   }
 
-  async function call({ service, args = [] }) {
+  async function call({ thing, service, args = [] }) {
     // Calls to one thing are serialised and spaced, as Atlas requires.
     const wait = Math.max(0, busyUntil - Date.now());
     busyUntil = Date.now() + wait + callGapMs;
     if (wait > 0) await sleep(wait);
 
-    const spec = SERVICES.find(([, name]) => name === service);
+    // A call that names a thing only reaches that thing's services, the way a
+    // real call would: it goes to one thing's address.
+    const spec = servicesOf(thing).find(([, name]) => name === service);
     if (!spec) return { status: "Unsuccessful", result: null, description: "Unknown Service" };
 
     const [, , , inputs] = spec;
@@ -88,6 +114,13 @@ export function createSimGateway({ onTweet, callGapMs = CALL_GAP_MS } = {}) {
   }
 
   return { name: "simulator", start, stop, call };
+}
+
+/** The services a call can reach: one thing's, or every one when none is named. */
+function servicesOf(thing) {
+  if (thing === THING) return SERVICES;
+  if (thing === LAMP_THING) return LAMP_SERVICES;
+  return [...SERVICES, ...LAMP_SERVICES];
 }
 
 // --- behaviour ---------------------------------------------------------------
@@ -134,6 +167,17 @@ function run(service, args, state) {
     case "Read_Window_Position":
       return { result: state.windowAngle };
 
+    case "Lamp_On":
+      state.lampLevel = clamped(args[0], RANGES.Lamp_On);
+      return { result: state.lampLevel };
+
+    case "Lamp_Off":
+      state.lampLevel = 0;
+      return { result: null };
+
+    case "Read_Lamp_Level":
+      return { result: state.lampLevel };
+
     default:
       return { result: null };
   }
@@ -142,17 +186,39 @@ function run(service, args, state) {
 // --- the tweets it announces itself with ------------------------------------
 
 function buildTweets() {
-  const common = { "Thing ID": THING, "Space ID": SPACE };
+  return [
+    ...thingTweets({
+      thing: THING,
+      name: "Smart Air Quality Sensor",
+      description: "Air quality control system",
+      entities: ENTITIES,
+      services: SERVICES,
+      relationships: RELATIONSHIPS,
+    }),
+    ...thingTweets({
+      thing: LAMP_THING,
+      name: "Smart Lamp",
+      description: "Dimmable lamp of another group in the same space",
+      entities: LAMP_ENTITIES,
+      services: LAMP_SERVICES,
+      relationships: LAMP_RELATIONSHIPS,
+    }),
+  ];
+}
+
+/** The five tweets one thing introduces itself with, in the order Atlas sends them. */
+function thingTweets({ thing, name, description, entities, services, relationships }) {
+  const common = { "Thing ID": thing, "Space ID": SPACE };
 
   return [
     {
       "Tweet Type": "Identity_Thing",
       ...common,
-      Name: "Smart Air Quality Sensor",
+      Name: name,
       Model: "",
       Vendor: "",
       Owner: "BoarGroup",
-      Description: "Air quality control system",
+      Description: description,
       OS: "Raspbian",
     },
     {
@@ -163,36 +229,36 @@ function buildTweets() {
       IP: "127.0.0.1",
       Port: "6668",
     },
-    ...ENTITIES.map(([id, name]) => ({
+    ...entities.map(([id, entityName]) => ({
       "Tweet Type": "Identity_Entity",
       ...common,
-      Name: name,
+      Name: entityName,
       ID: id,
       Type: "",
       Owner: "BoarGroup",
       Vendor: "",
       Description: "",
     })),
-    ...SERVICES.map(([entity, name, type, inputs, output]) => ({
+    ...services.map(([entity, serviceName, type, inputs, output]) => ({
       "Tweet Type": "Service",
       ...common,
       "Entity ID": entity,
-      Name: name,
+      Name: serviceName,
       Vendor: "",
-      API: serviceApi(name, inputs, output),
+      API: serviceApi(serviceName, inputs, output),
       Type: type,
       AppCategory: "",
       Description: "",
       Keywords: "",
     })),
-    ...RELATIONSHIPS.map(([name, type, first, second, description]) => ({
+    ...relationships.map(([relationshipName, type, first, second, relationshipDescription]) => ({
       "Tweet Type": "Relationship",
       ...common,
-      Name: name,
+      Name: relationshipName,
       Owner: "BoarGroup",
       Category: "Cooperative",
       Type: type,
-      Description: description,
+      Description: relationshipDescription,
       "FS name": first,
       "SS name": second,
     })),

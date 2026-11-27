@@ -3,9 +3,13 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 
 import { buildAst } from "../lang/ast.js";
 import { runProgram } from "../lang/run.js";
+import { createSimGateway } from "../server/gateway-sim.js";
+import { RunManager } from "../server/runtime.js";
+import { Space } from "../server/space.js";
 
 /**
  * @param {string} source
@@ -152,4 +156,41 @@ test("stopping mid-chain abandons the calls that were still to come", async () =
 test("an app with no loop finishes on its own", async () => {
   const { outcome } = await run("RUN A()");
   assert.equal(outcome, "completed");
+});
+
+// --- two things in one app ---------------------------------------------------
+
+// A user-defined relationship may link two things, so an app built from one has
+// to reach both. This checks the existing routing in RunManager.invoke; nothing
+// about the runtime was changed for it.
+test("one app calling services on two different things runs correctly", async () => {
+  const space = new Space({ id: "BoarSmartSpace" });
+  const gateway = createSimGateway({ onTweet: (tweet) => space.applyTweet(tweet), callGapMs: 0 });
+  gateway.start();
+  await delay(2200);
+  gateway.stop();
+
+  const log = [];
+  const runs = new RunManager({ gateway, space, onLog: (line) => log.push(line) });
+  const { error, run: started } = runs.activate({
+    file: "CrossThing.iot",
+    name: "CrossThing",
+    source: [
+      "RUN  AT_BoarAirSensor.Fan_On(60)",
+      "THEN AT_BoarLamp.Lamp_On(40)",
+      "THEN AT_BoarAirSensor.Read_Fan_Speed()",
+      "THEN AT_BoarLamp.Read_Lamp_Level()",
+    ].join("\n"),
+  });
+  assert.equal(error, null);
+
+  for (let attempt = 0; attempt < 100 && started.status === "Active"; attempt++) await delay(50);
+  assert.equal(started.status, "Completed");
+
+  // Every call reached a thing that offers it, and the two actuators kept the
+  // values they were given — so neither call was routed to the wrong thing.
+  assert.ok(!log.some((line) => /does not offer|no thing in the space/.test(line.text)), log.map((l) => l.text).join("\n"));
+  const lines = log.map((line) => line.text);
+  assert.ok(lines.includes("reply Read_Fan_Speed -> Successful: 60"), lines.join("\n"));
+  assert.ok(lines.includes("reply Read_Lamp_Level -> Successful: 40"), lines.join("\n"));
 });
