@@ -123,8 +123,10 @@ guideline's intent is still satisfied.
 - **Guideline (`AGENTS.md`):** "Work directly on `main`. The repo is used from two
   computers whose local files don't sync, so GitHub is the only source of truth."
 - **Prompt:** "Work on a branch."
-- **Resolution:** this change was built on the `relationships` branch, as asked.
-  Nothing else about the workflow changed, and the branch is meant to be merged into
-  `main` as soon as it is reviewed, so `main` stays the source of truth between the
-  two machines — which is the reason `AGENTS.md` gives for the rule. Nothing was
-  pushed with `--force` and no pushed commit was rewritten.
+- **Resolution:** no conflict in the end. The change was built on the
+  `relationships` branch as the prompt asked, then fast-forwarded into `main` at the
+  user's request, so the six commits now sit directly on `main` with a linear history
+  and `main` is the single source of truth between the two machines — which is the
+  reason `AGENTS.md` gives for the rule. Nothing was pushed with `--force` and no
+  pushed commit was rewritten. Kept as an entry only to record that the branch step
+  happened and left no trace in the history.

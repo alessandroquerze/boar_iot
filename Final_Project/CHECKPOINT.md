@@ -12,15 +12,15 @@ tag `plan-approved` is the planning-only tree to restart from. 130 tests pass;
  9 app manager (.iot files, save/finalize/delete) · 10 runtime (activate, stop,
  status panel, the Lab 4 orchestrator).
 
-Current: branch **`relationships`** — the instructor's clarification is
-implemented and not yet merged into `main`. One space-level `relationships` list
+Current: the instructor's clarification on relationships is implemented and
+merged into `main`. One space-level `relationships` list
 (`PLAN.md` §5.1): advertised IoT-DDL relationships stay read-only and same-thing
 only, the developer can add `order`/`condition` ones between any two discovered
 services across things, saved in `relationships.json` beside the apps
 (`server/relationships.js`, §5.4). Dropping a service offers them as connect
 suggestions (§6.2). `runtime.js` is untouched. Conflicts C8 and C9 logged.
 
-Next action: review and merge `relationships` into `main`, then either
+Next action: either
  (a) step 11, once the user provides a tweet capture
      (`mosquitto_sub -h <pi> -t '/Atlas/#' -v`) and hardware access — correct
      `docs/tweets.md` and `server/gateway-atlas.js` against the real traffic,
