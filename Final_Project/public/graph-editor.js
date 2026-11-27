@@ -7,6 +7,7 @@
 
 import { space } from "./main.js";
 import { activeProject, reprint, setAst } from "./project.js";
+import { conditionTextFor, suggestionLabel, suggestionsFor } from "./relationship-guidance.js";
 import { syncFromModel } from "./text-editor.js";
 
 const { PORTS, astToGraph, buildAst, graphToAst, layoutOf, printProgram, tailOf } = window.AtlasEditor;
@@ -59,6 +60,7 @@ export function initGraphEditor({ onChange }) {
 export function showProjectGraph(project) {
   if (!editor) return;
 
+  hideSuggestions();
   suspended = true;
   if (!project) {
     editor.clear();
@@ -166,19 +168,26 @@ function initDropTarget(container) {
 
     event.preventDefault();
     const { thing, service } = JSON.parse(payload);
-    addServiceBlock(thing, service, canvasPosition(event.clientX, event.clientY));
+    const nodeId = addServiceBlock(thing, service, canvasPosition(event.clientX, event.clientY));
+
+    // R3's "with the guidance of relationships": offer the edges the space says
+    // belong after this service.
+    showSuggestions(event, { thing, service, nodeId });
   });
 }
 
 /** Add a block for a discovered service. Used by drag-and-drop and by the panel. */
 export function addServiceBlock(thing, service, position = { x: 80, y: 80 }) {
+  return addBlock("service", 2, serviceData(thing, service), position);
+}
+
+function serviceData(thing, service) {
   const data = { thing: thing ?? "", service: service.name, astId: newId("c") };
   service.inputs.forEach((input, index) => {
     data[`arg${index}`] = "0";
     data[`label${index}`] = input.name;
   });
-
-  addBlock("service", 2, data, position);
+  return data;
 }
 
 export function addControlBlock(kind) {
@@ -196,14 +205,22 @@ export function addControlBlock(kind) {
 // appended to the end of what is already there. The user can always re-wire it.
 function addBlock(kind, outputs, data, position) {
   const tail = tailOf(editor.export());
-  const id = editor.addNode(kind, 1, outputs, position.x, position.y, `node-${kind}`, data, nodeHtml(kind, data), false);
+  const id = createBlock(kind, outputs, data, position);
 
   if (tail) {
     const nodeName = nodes()[tail.nodeId]?.name;
-    const port = `output_${(PORTS[nodeName] ?? []).indexOf(tail.port) + 1}`;
-    editor.addConnection(tail.nodeId, id, port, "input_1");
+    editor.addConnection(tail.nodeId, id, portOf(nodeName, tail.port), "input_1");
   }
   return id;
+}
+
+/** A block the caller wires up itself, instead of appending it to the program. */
+function createBlock(kind, outputs, data, position) {
+  return editor.addNode(kind, 1, outputs, position.x, position.y, `node-${kind}`, data, nodeHtml(kind, data), false);
+}
+
+function portOf(kind, port) {
+  return `output_${(PORTS[kind] ?? []).indexOf(port) + 1}`;
 }
 
 /** A placeholder id until the next re-print derives one from the program text. */
@@ -269,6 +286,103 @@ function inputName(serviceName, index) {
       const service = entity.services.find((candidate) => candidate.name === serviceName);
       if (service) return service.inputs[index]?.name;
     }
+  }
+  return null;
+}
+
+// --- relationship guidance ---------------------------------------------------
+
+// Dropping a service offers the relationships that start at it as one-click
+// connections: an order-based one becomes a THEN edge, a condition-based one an
+// IF on the service's return value. Advertised and user-defined relationships
+// are treated alike, because the editor only cares what the relationship says.
+let suggestions = null;
+
+/** Where a suggested block lands, relative to the one it hangs off. */
+const SUGGEST_OFFSET = { x: 270, y: 95 };
+
+function showSuggestions(event, { thing, service, nodeId }) {
+  hideSuggestions();
+
+  const matches = suggestionsFor(space.relationships, { thing, service: service.name });
+  if (matches.length === 0) return;
+
+  const pane = document.getElementById("graph-pane");
+  const rect = pane.getBoundingClientRect();
+
+  suggestions = document.createElement("div");
+  suggestions.className = "graph-suggest";
+  suggestions.style.left = `${event.clientX - rect.left + 14}px`;
+  suggestions.style.top = `${event.clientY - rect.top + 14}px`;
+
+  const head = document.createElement("div");
+  head.className = "graph-suggest-head";
+  head.textContent = `${service.name} relates to`;
+
+  const dismiss = document.createElement("button");
+  dismiss.className = "icon-btn";
+  dismiss.title = "Dismiss";
+  dismiss.textContent = "×";
+  dismiss.addEventListener("click", hideSuggestions);
+  head.appendChild(dismiss);
+  suggestions.appendChild(head);
+
+  for (const relationship of matches) {
+    const button = document.createElement("button");
+    button.className = "small-btn";
+    button.textContent = suggestionLabel(relationship);
+    button.title = relationship.description || relationship.name;
+    button.addEventListener("click", () => {
+      applySuggestion(relationship, nodeId);
+      hideSuggestions();
+    });
+    suggestions.appendChild(button);
+  }
+
+  pane.appendChild(suggestions);
+}
+
+function hideSuggestions() {
+  suggestions?.remove();
+  suggestions = null;
+}
+
+function applySuggestion(relationship, fromNodeId) {
+  const from = nodes()[fromNodeId];
+  const second = serviceDefinition(relationship.second);
+  if (!from || !second) return;
+
+  const at = { x: from.pos_x + SUGGEST_OFFSET.x, y: from.pos_y + SUGGEST_OFFSET.y };
+
+  if (relationship.type === "order") {
+    // Type 2: the `ok` edge, which prints as THEN.
+    const id = createBlock("service", 2, serviceData(relationship.second.thing, second), at);
+    editor.addConnection(fromNodeId, id, portOf("service", "ok"), "input_1");
+    return;
+  }
+
+  // Type 3: an IF on the first service's return value, with the second service
+  // in its DO branch. The value compared against is a placeholder.
+  const first = serviceDefinition(relationship.first);
+  const condition = conditionTextFor(relationship, first?.inputs ?? []);
+  const ifId = createBlock("condition", 3, { condition, astId: newId("if") }, at);
+  editor.addConnection(fromNodeId, ifId, portOf("service", "next"), "input_1");
+
+  const bodyId = createBlock(
+    "service",
+    2,
+    serviceData(relationship.second.thing, second),
+    { x: at.x + SUGGEST_OFFSET.x, y: at.y + SUGGEST_OFFSET.y },
+  );
+  editor.addConnection(ifId, bodyId, portOf("condition", "then"), "input_1");
+}
+
+/** The service one end of a relationship names, as the thing advertised it. */
+function serviceDefinition(endpoint) {
+  const thing = (space.things ?? []).find((candidate) => candidate.id === endpoint.thing);
+  for (const entity of thing?.entities ?? []) {
+    const service = entity.services.find((candidate) => candidate.name === endpoint.service);
+    if (service) return service;
   }
   return null;
 }

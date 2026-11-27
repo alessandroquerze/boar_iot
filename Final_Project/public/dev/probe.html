@@ -19,6 +19,7 @@
       'http://localhost:7000/dev/probe.html?s=lock'
 
   Scenarios:  lock | remove | add | invalid | apply | tabs | newtab
+              relationships | relationshipCondition
   Add &n=<k> to stop a scenario after k steps, and &prev=1 to print the last
   run's breadcrumbs instead of running: a page that never settles is never
   dumped, so every line is also written to localStorage as it is produced.
@@ -283,6 +284,88 @@ const SCENARIOS = {
     doc().querySelector('.menu-action[data-action="stop"]').click();
     await wait(2500);
     say(`status after stop: ${status().join(" | ")}`);
+  },
+
+  // The relationships group: what it lists, adding one across two things, and
+  // the connect suggestion a drop offers because of it.
+  async relationships() {
+    const rows = () =>
+      [...doc().querySelectorAll("#devices-list .row.relationship")].map(
+        (row) => `${row.textContent.trim()} resolved=${row.dataset.resolved}`,
+      );
+    say(`listed:\n  ${rows().join("\n  ")}`);
+    say(`delete buttons: ${doc().querySelectorAll("#devices-list .relationship-delete").length}`);
+
+    // Add one between the air sensor's fan and the other thing's lamp.
+    doc().getElementById("relationship-add").click();
+    await wait(50);
+    const form = doc().querySelector("#relationship-dialog form");
+    say(`dialog open: ${doc().getElementById("relationship-dialog").open}`);
+    say(`service menu groups: ${form.elements.first.querySelectorAll("optgroup").length}`);
+
+    form.elements.name.value = "Lamp follows fan";
+    form.elements.first.value = JSON.stringify({
+      thing: "AT_BoarAirSensor",
+      entity: "Fan",
+      service: "Fan_On",
+    });
+    form.elements.second.value = JSON.stringify({
+      thing: "AT_BoarLamp",
+      entity: "Lamp",
+      service: "Lamp_On",
+    });
+    form.requestSubmit();
+    await wait(600);
+    say(`dialog closed: ${!doc().getElementById("relationship-dialog").open}`);
+    say(`error shown: ${JSON.stringify(doc().querySelector(".dialog-error").textContent)}`);
+
+    await until(() => rows().some((row) => row.includes("Lamp_On")), 4000);
+    say(`after adding:\n  ${rows().join("\n  ")}`);
+    // Only the user's own row may be deleted.
+    say(`delete buttons now: ${doc().querySelectorAll("#devices-list .relationship-delete").length}`);
+
+    // The same one again must be refused, with the dialog left open.
+    doc().getElementById("relationship-add").click();
+    await wait(50);
+    const again = doc().querySelector("#relationship-dialog form");
+    again.elements.name.value = "Again";
+    again.elements.first.value = JSON.stringify({ thing: "AT_BoarAirSensor", entity: "Fan", service: "Fan_On" });
+    again.elements.second.value = JSON.stringify({ thing: "AT_BoarLamp", entity: "Lamp", service: "Lamp_On" });
+    again.requestSubmit();
+    await wait(600);
+    say(`duplicate refused: ${JSON.stringify(doc().querySelector(".dialog-error").textContent)}`);
+    say(`dialog still open: ${doc().getElementById("relationship-dialog").open}`);
+    doc().querySelector('#relationship-dialog button[value="cancel"]').click();
+
+    // Dropping Fan_On must now offer both the advertised and the user one.
+    say(`blocks before: ${blockCount()}`);
+    dropService("Fan_On");
+    await wait(0);
+    const suggest = () => doc().querySelector(".graph-suggest");
+    say(`suggestions: ${[...(suggest()?.querySelectorAll(".small-btn") ?? [])].map((b) => b.textContent).join(" | ")}`);
+
+    [...suggest().querySelectorAll(".small-btn")]
+      .find((button) => button.textContent.includes("Lamp_On"))
+      .click();
+    await wait(50);
+    say(`blocks after: ${blockCount()}`);
+    say(`suggestions dismissed: ${!suggest()}`);
+    say(`doc:\n${text()}`);
+  },
+
+  // The condition-based suggestion: an IF on the first service's return value.
+  async relationshipCondition() {
+    dropService("Read_Temp");
+    await wait(0);
+    const suggest = () => doc().querySelector(".graph-suggest");
+    say(`suggestions: ${[...suggest().querySelectorAll(".small-btn")].map((b) => b.textContent).join(" | ")}`);
+
+    [...suggest().querySelectorAll(".small-btn")]
+      .find((button) => button.textContent.startsWith("if"))
+      .click();
+    await wait(50);
+    say(`blocks: ${blockCount()}`);
+    say(`doc:\n${text()}`);
   },
 
   async apply() {
