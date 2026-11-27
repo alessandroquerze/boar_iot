@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { AppStore, nameError } from "./apps.js";
 import { createAtlasGateway } from "./gateway-atlas.js";
 import { createSimGateway } from "./gateway-sim.js";
+import { RelationshipStore } from "./relationships.js";
 import { RunManager } from "./runtime.js";
 import { Space } from "./space.js";
 
@@ -73,6 +74,9 @@ const gateway = config.simulate
 
 // The Atlas working directory, scanned when the IDE starts.
 const apps = new AppStore(config.appsDir);
+
+// The developer's own relationships live beside the apps and survive a restart.
+const relationships = new RelationshipStore(config.appsDir);
 
 // Runs live here, not in the browser, so activate/stop/Completed are a real
 // life cycle and the status panel is empty every time the IDE starts.
@@ -153,6 +157,11 @@ function readJson(request) {
   });
 }
 
+function sendNoContent(response) {
+  response.writeHead(204);
+  response.end();
+}
+
 function send(response, status, body) {
   const payload = typeof body === "string" ? body : JSON.stringify(body);
   response.writeHead(status, {
@@ -177,6 +186,30 @@ const server = createServer(async (request, response) => {
 
     if (route === "GET /api/apps") return send(response, 200, await apps.list());
     if (route === "GET /api/runs") return send(response, 200, runs.list());
+
+    // Relationships. A change is pushed as a new space state, because the
+    // advertised and the user-defined ones are one list in the browser.
+    if (route === "GET /api/relationships") {
+      return send(response, 200, space.toJSON().relationships);
+    }
+
+    if (route === "POST /api/relationships") {
+      const { error, relationship } = await relationships.add(await readJson(request), space.toJSON());
+      if (error) return send(response, 400, { error });
+
+      space.setUserRelationships(relationships.list());
+      return send(response, 201, relationship);
+    }
+
+    const relationshipRoute = /^\/api\/relationships\/(.+)$/.exec(url.pathname);
+    if (relationshipRoute && request.method === "DELETE") {
+      const id = decodeURIComponent(relationshipRoute[1]);
+      const { status, error } = await relationships.remove(id, space.toJSON());
+      if (error) return send(response, status, { error });
+
+      space.setUserRelationships(relationships.list());
+      return sendNoContent(response);
+    }
 
     const stopRoute = /^\/api\/runs\/([^/]+)\/stop$/.exec(url.pathname);
     if (stopRoute && request.method === "POST") {
@@ -223,10 +256,19 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(config.port, "0.0.0.0", () => {
+server.listen(config.port, "0.0.0.0", async () => {
+  await apps.ready();
+
+  // Read the saved relationships before the first state goes out, so the
+  // Relationships view is complete from the first frame.
+  const saved = await relationships.load();
+  space.userRelationships = saved;
+
+  // Printed in one go, after the working directory has been read: the first
+  // line of output is what the tests wait for to know the IDE is up.
   console.log(`Atlas IoT IDE on ${space.ideAddress}`);
   console.log(`  apps directory  ${config.appsDir}`);
-  apps.ready();
+  console.log(`  relationships   ${saved.length} user-defined`);
   console.log(`  space           ${config.simulate ? "simulated" : `broker ${config.broker}`}`);
 
   // Only start listening to the space once the IDE can be reached, so the
@@ -248,4 +290,4 @@ function shutdown() {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-export { broadcast, config, gateway, space };
+export { broadcast, config, gateway, relationships, space };

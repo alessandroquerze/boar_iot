@@ -4,6 +4,9 @@ node_modules/
 # apps that ship with the IDE are force-added.
 apps/*.iot
 
+# The developer's own relationships, written next to their apps.
+apps/relationships.json
+
 # Local settings written by the server at runtime.
 server/settings.local.json
 
