@@ -654,6 +654,10 @@ button:disabled { opacity: 0.4; cursor: default; }
 /* An end that is not in the space right now: shown, but clearly not usable. */
 .row.relationship[data-resolved="false"] { opacity: 0.45; }
 
+/* Only the ones the editor can build are a drag source, like a service row. */
+.row.relationship[draggable="true"] { cursor: grab; }
+.row.relationship[draggable="true"]:active { cursor: grabbing; }
+
 .relationship-delete { width: 18px; height: 18px; visibility: hidden; }
 .row.relationship:hover .relationship-delete { visibility: visible; }
 

@@ -19,7 +19,7 @@
       'http://localhost:7000/dev/probe.html?s=lock'
 
   Scenarios:  lock | remove | add | invalid | apply | tabs | newtab
-              relationships | relationshipCondition
+              relationships | relationshipDrag | relationshipCondition
   Add &n=<k> to stop a scenario after k steps, and &prev=1 to print the last
   run's breadcrumbs instead of running: a page that never settles is never
   dumped, so every line is also written to localStorage as it is produced.
@@ -99,6 +99,28 @@ function pressDelete() {
   doc()
     .getElementById("drawflow")
     .dispatchEvent(new frame.contentWindow.KeyboardEvent("keydown", { key: "Delete", bubbles: true }));
+}
+
+// A relationship row is a drag source too; dropping it builds the whole shape.
+function dropRelationship(match) {
+  const row = [...doc().querySelectorAll("#devices-list .row.relationship")].find((candidate) =>
+    candidate.textContent.includes(match),
+  );
+  if (!row) return say(`! no relationship row matching ${match}`);
+  say(`row draggable: ${row.draggable}`);
+
+  const transfer = new frame.contentWindow.DataTransfer();
+  row.dispatchEvent(new frame.contentWindow.DragEvent("dragstart", { bubbles: true, dataTransfer: transfer }));
+
+  const canvas = doc().getElementById("drawflow");
+  canvas.dispatchEvent(
+    new frame.contentWindow.DragEvent("drop", {
+      bubbles: true,
+      dataTransfer: transfer,
+      clientX: 700,
+      clientY: 600,
+    }),
+  );
 }
 
 function dropService(name) {
@@ -349,6 +371,50 @@ const SCENARIOS = {
     await wait(50);
     say(`blocks after: ${blockCount()}`);
     say(`suggestions dismissed: ${!suggest()}`);
+    say(`doc:\n${text()}`);
+  },
+
+  // Dragging a relationship onto the canvas builds what it describes, and the
+  // rows the editor cannot build are not drag sources at all.
+  async relationshipDrag() {
+    const rows = () => [...doc().querySelectorAll("#devices-list .row.relationship")];
+    say(
+      `draggable per row:\n  ${rows()
+        .map((row) => `${row.textContent.trim().slice(0, 44)} -> ${row.draggable}`)
+        .join("\n  ")}`,
+    );
+
+    say(`blocks before: ${blockCount()}`);
+    dropRelationship("Calibrate_Sensor → ClimateSensor.Read_Temp");
+    await wait(0);
+    say(`blocks after order drag: ${blockCount()}`);
+    say(`green lines: ${marked("cm-added").join(" ") || "(none)"}`);
+    say(`doc:\n${text()}`);
+
+    // The IoT-DDL declares no condition relationship, so define a cross-thing
+    // one and drag that: it must build the IF and the DO branch in one gesture.
+    doc().getElementById("relationship-add").click();
+    await wait(50);
+    const form = doc().querySelector("#relationship-dialog form");
+    form.elements.name.value = "Lamp by temperature";
+    form.querySelector('input[name="type"][value="condition"]').checked = true;
+    form.elements.first.value = JSON.stringify({
+      thing: "AT_BoarAirSensor",
+      entity: "ClimateSensor",
+      service: "Read_Temp",
+    });
+    form.elements.second.value = JSON.stringify({
+      thing: "AT_BoarLamp",
+      entity: "Lamp",
+      service: "Lamp_On",
+    });
+    form.requestSubmit();
+    await wait(600);
+    await until(() => rows().some((row) => row.textContent.includes("Lamp by")), 4000);
+
+    dropRelationship("Read_Temp → AT_BoarLamp.Lamp.Lamp_On");
+    await wait(0);
+    say(`blocks after condition drag: ${blockCount()}`);
     say(`doc:\n${text()}`);
   },
 

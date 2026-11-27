@@ -7,7 +7,7 @@
 
 import { space } from "./main.js";
 import { activeProject, reprint, setAst } from "./project.js";
-import { conditionTextFor, suggestionLabel, suggestionsFor } from "./relationship-guidance.js";
+import { conditionTextFor, isActionable, suggestionLabel, suggestionsFor } from "./relationship-guidance.js";
 import { syncFromModel } from "./text-editor.js";
 
 const { PORTS, astToGraph, buildAst, graphToAst, layoutOf, printProgram, tailOf } = window.AtlasEditor;
@@ -154,21 +154,36 @@ function nodes() {
 
 // --- adding blocks ----------------------------------------------------------
 
+// The Devices panel drags two things onto the canvas: a service, which becomes
+// one call, and a relationship, which becomes the whole structure it describes.
+const DRAG_TYPES = ["application/atlas-service", "application/atlas-relationship"];
+
 function initDropTarget(container) {
   container.addEventListener("dragover", (event) => {
-    if (event.dataTransfer.types.includes("application/atlas-service")) {
+    if (DRAG_TYPES.some((type) => event.dataTransfer.types.includes(type))) {
       event.preventDefault();
       event.dataTransfer.dropEffect = "copy";
     }
   });
 
   container.addEventListener("drop", (event) => {
+    if (!activeProject()) return;
+    const position = () => canvasPosition(event.clientX, event.clientY);
+
+    const relationship = event.dataTransfer.getData("application/atlas-relationship");
+    if (relationship) {
+      event.preventDefault();
+      hideSuggestions();
+      dropRelationship(JSON.parse(relationship), position());
+      return;
+    }
+
     const payload = event.dataTransfer.getData("application/atlas-service");
-    if (!payload || !activeProject()) return;
+    if (!payload) return;
 
     event.preventDefault();
     const { thing, service } = JSON.parse(payload);
-    const nodeId = addServiceBlock(thing, service, canvasPosition(event.clientX, event.clientY));
+    const nodeId = addServiceBlock(thing, service, position());
 
     // R3's "with the guidance of relationships": offer the edges the space says
     // belong after this service.
@@ -345,6 +360,22 @@ function showSuggestions(event, { thing, service, nodeId }) {
 function hideSuggestions() {
   suggestions?.remove();
   suggestions = null;
+}
+
+/**
+ * A relationship dragged out of the Devices panel: its first service becomes a
+ * block appended to the program, and the relationship builds the rest onto it.
+ * So the drag produces the same shape as dropping the first service and then
+ * taking its suggestion, in one gesture.
+ */
+function dropRelationship(relationship, position) {
+  if (!isActionable(relationship)) return;
+
+  const first = serviceDefinition(relationship.first);
+  if (!first) return;
+
+  const fromNodeId = addServiceBlock(relationship.first.thing, first, position);
+  applySuggestion(relationship, fromNodeId);
 }
 
 function applySuggestion(relationship, fromNodeId) {

@@ -17,6 +17,7 @@ import { RelationshipStore, buildRelationship } from "../server/relationships.js
 import { Space } from "../server/space.js";
 import {
   conditionTextFor,
+  isActionable,
   suggestionLabel,
   suggestionsFor,
 } from "../public/relationship-guidance.js";
@@ -357,6 +358,20 @@ test("guidance offers the relationships that start at the dropped service", () =
   assert.deepEqual(suggestionsFor(relationships, { thing: LAMP, service: "Fan_On" }), []);
   // Nor does the second end: there would be nothing to connect it to.
   assert.deepEqual(suggestionsFor(relationships, { thing: LAMP, service: "Lamp_On" }), []);
+});
+
+test("only resolved order and condition relationships can be built", () => {
+  const ends = {
+    first: { thing: AIR, entity: "Fan", service: "Fan_On" },
+    second: { thing: LAMP, entity: "Lamp", service: "Lamp_On" },
+  };
+
+  assert.equal(isActionable({ ...ends, type: "order", resolved: true }), true);
+  assert.equal(isActionable({ ...ends, type: "condition", resolved: true }), true);
+  // Shown in the panel, but neither draggable nor suggested:
+  assert.equal(isActionable({ ...ends, type: "interfere", resolved: true }), false, "interfere is not a program");
+  assert.equal(isActionable({ ...ends, type: "order", resolved: false }), false, "an end is offline");
+  assert.equal(isActionable(undefined), false);
 });
 
 test("an unresolved relationship is never offered", () => {
