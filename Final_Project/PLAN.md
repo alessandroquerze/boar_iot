@@ -484,15 +484,21 @@ synchronisation mechanism.
 
 So R3's three types are exactly: a chain of `next` edges (Type 1), an `ok` edge
 (Type 2), a `condition` node (Type 3) — and they compose because every output can
-lead into any node. Services are dragged in from the Devices panel; when a service is
-dropped, the relationships that start at it are offered as a one-click "connect"
-suggestion (R3's "with the guidance of relationships"):
+lead into any node.
 
-| Relationship | What the suggestion adds |
+R3's "with the guidance of relationships" works two ways, both from the same rules:
+
+1. **Drag a relationship** out of the Devices panel onto the canvas. Its first
+   service is appended to the program like any dropped service, and the
+   relationship builds the rest onto it — so one gesture produces the whole shape.
+2. **Drop a service**, and the relationships that start at it are offered as
+   one-click "connect" suggestions next to it.
+
+| Relationship | What is built |
 |---|---|
-| `order` | a block for the second service, joined by the dropped block's `ok` port — a `THEN` edge |
+| `order` | a block for the second service, joined by the first block's `ok` port — a `THEN` edge |
 | `condition` | a `condition` block testing the first service's return value against a **placeholder** value, with a block for the second service in its `then` branch |
-| anything else (`interfere`) | nothing: it is shown in the Relationships view but never offered |
+| anything else (`interfere`) | nothing: it is shown in the Relationships view, but it is not a drag source and is never suggested. `interfere` says two services conflict, which is not a program |
 
 The rules live in `public/relationship-guidance.js`, which has no DOM in it and is
 unit-tested. Three details:
@@ -647,9 +653,11 @@ directions are one lookup in the id ↔ range maps built in §7.1.
   two things and so belongs to no single device. Each row reads
   `Entity.Service → Entity.Service` (prefixed with the thing when the two ends are on
   different things) with a type badge and a source badge (*IoT-DDL* / *user*); an
-  unresolved row is greyed out, and a user row carries a delete icon. A
-  *+ add relationship* button opens the dialog of §5.4, disabled while the start-up
-  scan is still running.
+  unresolved row is greyed out, and a user row carries a delete icon. A row the
+  editor can build (`order` or `condition`, both ends discovered) is a **drag
+  source** onto the graphical editor, exactly as a service row is, so the group is
+  a palette and not just a view. A *+ add relationship* button opens the dialog of
+  §5.4, disabled while the start-up scan is still running.
 * **Tab bar** — one tab per open project, dirty marker, middle-click to close,
   warn on close when unsaved.
 * **Bottom panel** — tabbed: **Console** (validation errors, the prompt's
@@ -700,7 +708,7 @@ directions are one lookup in the id ↔ range maps built in §7.1.
 | R2/R4 SAVE APP only inside the editor, `.iot` rules, repeated saves | `update` is enabled only with a project open; `server/apps.js` enforces `name` → `name.iot` and `name.ext` → `name.ext.iot`, and overwrites silently once the file name is known |
 | R3 editor, GUI + text | the two synchronised editors |
 | R3 Types 1, 2, 3 composable sequentially | §6, §6.2 |
-| R3 relationship guidance | §6.2, driven by the one `relationships` list of §5.1 — advertised and user-defined alike |
+| R3 relationship guidance | §6.2: relationships are dragged onto the canvas, and are offered as suggestions when a service is dropped. Both driven by the one `relationships` list of §5.1 — advertised and user-defined alike |
 | R3 Clear and Finalize | decision D2: *clear* in the graphical editor's toolbar, *finalize* in the Apps panel acting on the active project |
 | R4 UPLOAD APP, working directory scanned at start | `server/apps.js` scans the configured directory at boot and on change |
 | R4 working directory fixed but changeable | a setting, persisted server-side |

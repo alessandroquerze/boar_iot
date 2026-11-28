@@ -9,7 +9,7 @@
 ```bash
 npm install
 npm run build     # grammar -> parser, CodeMirror -> public/vendor/editor.bundle.js
-npm test          # 133 tests, no browser and no hardware needed
+npm test          # 134 tests, no browser and no hardware needed
 npm start -- --simulate      # the Lab 4 thing, simulated: nothing else to set up
 npm start                    # the real space, broker 192.168.8.189:1883
 npm start -- --broker <ip>:1883 --apps /path/to/atlas/working/directory
@@ -140,11 +140,11 @@ Priority: **M** = must (graded core), **S** = should, **C** = could (only if eve
 |---|---|---|
 | 3.1 | Text editor reusing the Lab 4 grammar (§7), with live syntax check and error messages | M |
 | 3.2 | **Service palette**: pick one or more discovered services (grouped by thing/type); click/double-click inserts a call template with argument placeholders | M |
-| 3.3 | **Relationship guidance:** dropping a service offers the relationships that start at it — `order` adds a `THEN` edge, `condition` an `IF` on its return value with a placeholder. Advertised and user-defined alike; unresolved ones skipped; generated calls always qualified `Thing.Service(…)` | M |
+| 3.3 | **Relationship guidance:** a relationship can be **dragged** from the Devices panel onto the canvas to build the whole shape it describes, and dropping a service offers the relationships that start at it as one-click suggestions. `order` builds a `THEN` edge, `condition` an `IF` on the first service's return value with a placeholder. Advertised and user-defined alike; `interfere` and unresolved ones are shown but never built; generated calls always qualified `Thing.Service(…)` | M |
 | 3.4 | Support Type 1 (ordered set), Type 2 (order-based `THEN`), Type 3 (condition-based `IF/DO/ELSE/END`), composed sequentially | M |
 | 3.5 | **Clear** the editor | M |
 | 3.6 | **Finalize:** validate (parses + all services exist + arg counts match) → ask for an app name → add to Apps list and save to the working directory | M |
-| 3.7 | Drag-and-drop of services onto the editor | S |
+| 3.7 | Drag-and-drop of services **and relationships** onto the editor | S |
 | 3.8 | Visual block/flow editor | C |
 | 3.9 | **Looping** (extra credit in the guidelines, but we also need it to make STOP demonstrable — see §7) | S |
 

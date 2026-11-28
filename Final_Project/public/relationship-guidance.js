@@ -1,9 +1,10 @@
-// Which relationships guide a service that was just dropped on the canvas, and
-// the text a one-click "connect" generates. No DOM here, so the rules can be
-// tested on their own (tests/relationships.test.js).
+// Which relationships the editor can build, and the text one generates. No DOM
+// here, so the rules can be tested on their own (tests/relationships.test.js).
 //
-// A relationship never executes anything: all it does is offer the edge or the
-// IF the developer would otherwise draw by hand.
+// A relationship never executes anything: all it does is build the edge or the
+// IF the developer would otherwise draw by hand. Two ways in, both using the
+// rules below: dragging a relationship out of the Devices panel onto the canvas,
+// and the suggestions offered when a service is dropped.
 
 /** The two kinds the editor can act on. Anything else is shown but not offered. */
 export const GUIDED_TYPES = ["order", "condition"];
@@ -12,12 +13,19 @@ export const GUIDED_TYPES = ["order", "condition"];
 export const PLACEHOLDER_VALUE = 0;
 
 /**
+ * Whether the editor can turn this relationship into blocks. An `interfere`
+ * relationship says two services conflict, which is not a program; an
+ * unresolved one has an end that is not in the space right now, so the block it
+ * would add could not be called. Both are shown in the panel, neither is built.
+ */
+export function isActionable(relationship) {
+  return Boolean(relationship?.resolved) && GUIDED_TYPES.includes(relationship?.type);
+}
+
+/**
  * The relationships that start at the service just dropped. Only the first end
  * is matched: the suggestion adds the second service after the dropped one, so
  * a relationship whose *second* end was dropped has nothing to connect to yet.
- *
- * Unresolved relationships are skipped — one of their ends is not in the space
- * right now, so the block it would add could not be called.
  *
  * @param {Array<object>} relationships  state.relationships, both sources
  * @param {{thing: string, service: string}} dropped
@@ -25,8 +33,7 @@ export const PLACEHOLDER_VALUE = 0;
 export function suggestionsFor(relationships, { thing, service }) {
   return (relationships ?? []).filter(
     (relationship) =>
-      relationship.resolved &&
-      GUIDED_TYPES.includes(relationship.type) &&
+      isActionable(relationship) &&
       relationship.first.thing === thing &&
       relationship.first.service === service,
   );

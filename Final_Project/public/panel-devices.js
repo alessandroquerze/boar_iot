@@ -12,6 +12,7 @@
 // ones are added here and persist across restarts.
 
 import { onSpaceChange } from "./main.js";
+import { isActionable } from "./relationship-guidance.js";
 
 const open = new Set();
 
@@ -151,13 +152,24 @@ function relationshipsGroup(state) {
 }
 
 // An order-based or condition-based relationship is what the editor can act on;
-// anything else (Lab 4 declares `interfere`) is shown but not offered.
+// anything else (`interfere`) is shown but neither offered nor draggable.
 function relationshipRow(relationship) {
   const row = document.createElement("div");
   row.className = "row relationship";
   row.style.paddingLeft = "22px";
   row.dataset.resolved = String(relationship.resolved);
   row.title = relationshipTooltip(relationship);
+
+  // The relationships group is a palette too: dragging a row onto the canvas
+  // builds the blocks the relationship describes, the same way dragging a
+  // service builds one call.
+  if (isActionable(relationship)) {
+    row.draggable = true;
+    row.addEventListener("dragstart", (event) => {
+      event.dataTransfer.setData("application/atlas-relationship", JSON.stringify(relationship));
+      event.dataTransfer.effectAllowed = "copy";
+    });
+  }
 
   const name = document.createElement("span");
   name.className = "name mono";
@@ -190,6 +202,9 @@ function relationshipTooltip(relationship) {
     `second  ${full(relationship.second)}`,
     !relationship.resolved && "one end is not in the space right now",
     relationship.description && `\n${relationship.description}`,
+    isActionable(relationship)
+      ? "\ndrag onto the editor to build it"
+      : "\nthe editor cannot build this one",
   ]
     .filter(Boolean)
     .join("\n");
@@ -199,6 +214,10 @@ function deleteButton(relationship) {
   const button = document.createElement("button");
   button.className = "icon-btn relationship-delete";
   button.title = "Delete this relationship";
+  // Without this, pressing the icon on a draggable row starts a row drag
+  // instead of a click.
+  button.draggable = false;
+  button.addEventListener("dragstart", (event) => event.preventDefault());
   button.innerHTML = '<svg class="icon" width="12" height="12"><use href="#i-close" /></svg>';
 
   button.addEventListener("click", async (event) => {

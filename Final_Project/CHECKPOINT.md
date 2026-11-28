@@ -2,7 +2,7 @@
 Updated: 2026-11-27
 Done: plan steps 0–10, plus the relationships pass. The IDE works end to end
 against the simulated space. Decisions D1–D13 are in `PLAN.md` §12 (D4 revised);
-tag `plan-approved` is the planning-only tree to restart from. 130 tests pass;
+tag `plan-approved` is the planning-only tree to restart from. 134 tests pass;
 `npm run build` outputs are committed.
 
  0 decisions · 1 `docs/tweets.md` · 2 server + VS Code shell · 3 the language
@@ -25,8 +25,11 @@ one space-level `relationships` list (`PLAN.md` §5.1). Advertised IoT-DDL
 relationships stay read-only and same-thing only; the developer can add
 `order`/`condition` ones between any two discovered services, across things
 included, saved in `relationships.json` beside the apps
-(`server/relationships.js`, §5.4). Dropping a service offers them as connect
-suggestions (§6.2). `runtime.js` is untouched. Conflicts C8 and C9 logged.
+(`server/relationships.js`, §5.4). A relationship is a **drag source** onto the
+canvas and builds the shape it describes; dropping a service also offers the
+relationships that start at it as connect suggestions (§6.2). `interfere` and
+unresolved relationships are shown but never built. `runtime.js` is untouched.
+Conflicts C8 and C9 logged.
 A second simulated thing, `AT_BoarLamp`, makes the cross-thing case testable.
 
 Next action: either
