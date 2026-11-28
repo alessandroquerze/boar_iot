@@ -1,9 +1,3 @@
-// HTTP entry point: serves the IDE in public/, exposes the REST API and pushes
-// live updates over Server-Sent Events. Node built-ins only, no web framework.
-//
-// Usage:  node server/index.js [--port 7000] [--simulate] [--broker host:1883]
-//                              [--apps ./apps]
-
 import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
 import { readFile } from "node:fs/promises";
@@ -22,6 +16,7 @@ const publicDir = join(root, "public");
 
 // --- configuration ---------------------------------------------------------
 
+// Parses the cmd arguments
 function parseArgs(argv) {
   const config = {
     port: 7000,
@@ -35,15 +30,13 @@ function parseArgs(argv) {
     if (arg === "--simulate") config.simulate = true;
     else if (arg === "--port") config.port = Number(argv[++i]);
     else if (arg === "--broker") config.broker = argv[++i];
-    // resolve(), not join(): an absolute path must be taken as given.
     else if (arg === "--apps") config.appsDir = resolve(process.cwd(), argv[++i]);
     else throw new Error(`unknown option: ${arg}`);
   }
   return config;
 }
 
-// The guidelines ask the IDE to display the network address it was launched on,
-// so prefer a real LAN address over localhost.
+// Shows the LAN address over localhost.
 function lanAddress() {
   for (const addresses of Object.values(networkInterfaces())) {
     for (const address of addresses ?? []) {
@@ -62,8 +55,7 @@ const space = new Space({
   ideAddress: `http://${lanAddress()}:${config.port}`,
 });
 
-// Discovery runs here, in the server process, independent of any browser — the
-// background scan the guidelines ask for.
+// Reroutes the tweets to the Space
 const gateway = config.simulate
   ? createSimGateway({ onTweet: (tweet) => space.applyTweet(tweet) })
   : createAtlasGateway({
@@ -72,14 +64,13 @@ const gateway = config.simulate
       onStatus: (status) => space.setBroker(status),
     });
 
-// The Atlas working directory, scanned when the IDE starts.
+// The Atlas working directory, scanned when the IDE starts
 const apps = new AppStore(config.appsDir);
 
-// The developer's own relationships live beside the apps and survive a restart.
+// The developer's own relationships live beside the apps and survive a restart
 const relationships = new RelationshipStore(config.appsDir);
 
-// Runs live here, not in the browser, so activate/stop/Completed are a real
-// life cycle and the status panel is empty every time the IDE starts.
+// Manages the lifecycle of the applications
 const runs = new RunManager({
   gateway,
   space,
@@ -91,11 +82,13 @@ const runs = new RunManager({
 
 const clients = new Set();
 
+// Pushes the event to all connected clients
 function broadcast(event, data) {
   const frame = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const client of clients) client.write(frame);
 }
 
+// Sends Space's status and execution list, so the browser starts alligned
 function openEventStream(response) {
   response.writeHead(200, {
     "content-type": "text/event-stream",
@@ -105,7 +98,7 @@ function openEventStream(response) {
   response.write(`event: state\ndata: ${JSON.stringify(space.toJSON())}\n\n`);
   response.write(`event: runs\ndata: ${JSON.stringify(runs.list())}\n\n`);
   clients.add(response);
-  response.on("close", () => clients.delete(response));
+  response.on("close", () => clients.delete(response));   // Client removed when connection closed
 }
 
 // --- static files ----------------------------------------------------------
@@ -119,9 +112,9 @@ const CONTENT_TYPES = {
   ".map": "application/json; charset=utf-8",
 };
 
+// Handles the GET response
 async function serveStatic(pathname, response) {
-  // normalize() collapses "..", so a request can never escape public/.
-  const relative = normalize(pathname === "/" ? "/index.html" : pathname).replace(/^(\.\.[/\\])+/, "");
+  const relative = normalize(pathname === "/" ? "/index.html" : pathname).replace(/^(\.\.[/\\])+/, "");   // normalize() collapses ".."
   const file = join(publicDir, relative);
 
   if (!file.startsWith(publicDir)) return send(response, 403, "forbidden");
@@ -177,23 +170,16 @@ const server = createServer(async (request, response) => {
   const route = `${request.method} ${url.pathname}`;
 
   try {
-    if (route === "GET /api/state") return send(response, 200, space.toJSON());
-    if (route === "GET /api/events") return openEventStream(response);
+    // Read
+    if (route === "GET /api/state")   return send(response, 200, space.toJSON());     // Current space status
+    if (route === "GET /api/events")  return openEventStream(response);
+    if (route === "GET /api/config")  return send(response, 200, { appsDir: config.appsDir, simulate: config.simulate, broker: config.broker });  // Current configuration
+    if (route === "GET /api/apps")    return send(response, 200, await apps.list());  // App list
+    if (route === "GET /api/runs")    return send(response, 200, runs.list());        // Execution list
 
-    if (route === "GET /api/config") {
-      return send(response, 200, { appsDir: config.appsDir, simulate: config.simulate, broker: config.broker });
-    }
-
-    if (route === "GET /api/apps") return send(response, 200, await apps.list());
-    if (route === "GET /api/runs") return send(response, 200, runs.list());
-
-    // Relationships. A change is pushed as a new space state, because the
-    // advertised and the user-defined ones are one list in the browser.
-    if (route === "GET /api/relationships") {
-      return send(response, 200, space.toJSON().relationships);
-    }
-
-    if (route === "POST /api/relationships") {
+    // Relationships
+    if (route === "GET /api/relationships")   return send(response, 200, space.toJSON().relationships);   // Reads the already existing ones
+    if (route === "POST /api/relationships") {                                                            // Validates and writes a new one
       const { error, relationship } = await relationships.add(await readJson(request), space.toJSON());
       if (error) return send(response, 400, { error });
 
@@ -202,7 +188,7 @@ const server = createServer(async (request, response) => {
     }
 
     const relationshipRoute = /^\/api\/relationships\/(.+)$/.exec(url.pathname);
-    if (relationshipRoute && request.method === "DELETE") {
+    if (relationshipRoute && request.method === "DELETE") {                                               // Delete
       const id = decodeURIComponent(relationshipRoute[1]);
       const { status, error } = await relationships.remove(id, space.toJSON());
       if (error) return send(response, status, { error });
@@ -211,27 +197,27 @@ const server = createServer(async (request, response) => {
       return sendNoContent(response);
     }
 
-    const stopRoute = /^\/api\/runs\/([^/]+)\/stop$/.exec(url.pathname);
+    const stopRoute = /^\/api\/runs\/([^/]+)\/stop$/.exec(url.pathname);          // Stops the app execution
     if (stopRoute && request.method === "POST") {
       const { error } = runs.stop(stopRoute[1]);
       return send(response, error ? 409 : 200, error ? { error } : runs.list());
     }
 
-    const activateRoute = /^\/api\/apps\/(.+)\/activate$/.exec(url.pathname);
+    const activateRoute = /^\/api\/apps\/(.+)\/activate$/.exec(url.pathname);     // Starts the app execution
     if (activateRoute && request.method === "POST") {
       const file = decodeURIComponent(activateRoute[1]);
       const app = await apps.read(file);
       const { error, run } = runs.activate({ file: app.file, name: app.name, source: app.source });
-      return send(response, error ? 409 : 200, error ? { error } : run && { id: run.id });
+      return send(response, error ? 409 : 200, error ? { error } : run && { id: run.id });  // Returns the exec id
     }
 
+    // Application handler
     const appRoute = /^\/api\/apps\/(.+)$/.exec(url.pathname);
     if (appRoute) {
       const fileName = decodeURIComponent(appRoute[1]);
 
-      if (request.method === "GET") return send(response, 200, await apps.read(fileName));
-
-      if (request.method === "PUT") {
+      if (request.method === "GET") return send(response, 200, await apps.read(fileName));  // Reads the file content
+      if (request.method === "PUT") {                                                       // Saves the app
         const problem = nameError(fileName);
         if (problem) return send(response, 400, { error: problem });
 
@@ -239,8 +225,7 @@ const server = createServer(async (request, response) => {
         broadcast("apps", await apps.list());
         return send(response, 200, saved);
       }
-
-      if (request.method === "DELETE") {
+      if (request.method === "DELETE") {                                                    // Deletes the app
         await apps.remove(fileName);
         broadcast("apps", await apps.list());
         return send(response, 200, { deleted: fileName });
@@ -257,23 +242,16 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(config.port, "0.0.0.0", async () => {
-  await apps.ready();
-
-  // Read the saved relationships before the first state goes out, so the
-  // Relationships view is complete from the first frame.
-  const saved = await relationships.load();
+  await apps.ready();                         // Waits that AppStore reads all app files
+  const saved = await relationships.load();   // Read the saved relationships before the first state goes out
   space.userRelationships = saved;
 
-  // Printed in one go, after the working directory has been read: the first
-  // line of output is what the tests wait for to know the IDE is up.
   console.log(`Atlas IoT IDE on ${space.ideAddress}`);
   console.log(`  apps directory  ${config.appsDir}`);
   console.log(`  relationships   ${saved.length} user-defined`);
   console.log(`  space           ${config.simulate ? "simulated" : `broker ${config.broker}`}`);
 
-  // Only start listening to the space once the IDE can be reached, so the
-  // start-up scan and the overlay that goes with it line up.
-  space.on("change", (state) => broadcast("state", state));
+  space.on("change", (state) => broadcast("state", state));   // This way, every change reaches the browser
   if (config.simulate) space.setBroker("simulated");
   space.startScanning();
   gateway.start();
