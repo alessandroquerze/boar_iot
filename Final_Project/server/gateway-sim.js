@@ -1,17 +1,9 @@
-// A simulated Atlas space: the Lab 4 thing AT_BoarAirSensor, announced with the
-// same tweets the real middleware sends and answering calls with the same
-// semantics. It exists so the IDE can be developed, demonstrated and tested
-// without a Raspberry Pi — and as the fallback if the hardware misbehaves.
-//
-// The service metadata below is copied from Lab4/PartTwo/Atlas_IoTDDL.xml; the
-// behaviour from Lab4/PartOne/device/main.cpp: inputs are clamped to the nearest
-// allowed value rather than refused, and the actuators report the last value
-// they were commanded, because neither can be read back from the hardware.
-//
-// A second thing, AT_BoarLamp, stands for another group's Raspberry Pi in the
-// same space. It is not Lab 4 hardware: it is here so an app calling services
-// on two things, and a user-defined relationship across things, can be built
-// and run without the real space.
+// A simulated Atlas space: we took the "gateway-atlas.js" file and
+// modified it so it had embedded our smartspace
+// This started as a way of working separately, without the need to be connected to the
+// RaspberryPi, but we later decided that it can be a good feature for people that
+// want to create applications but can't connect at that moment at the smartspace
+// For future implementations, we could dinamically save smartspaces to use offline in this simulation mode
 
 const THING = "AT_BoarAirSensor";
 const LAMP_THING = "AT_BoarLamp";

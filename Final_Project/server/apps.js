@@ -1,8 +1,4 @@
-// The Atlas working directory: the .iot files the developer's apps live in.
-//
-// The naming rules come from the guidelines: an app name is short and has no
-// special characters, and the IDE always gives the file a .iot extension — if
-// the developer typed name.ext, the file is name.ext.iot.
+// The Atlas working directory: the .iot files the apps live in
 
 import { mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -17,12 +13,11 @@ export class AppStore {
     this.directory = directory;
   }
 
-  async ready() {
+  async ready() {   // Creates the working directory if it doesn't exist
     await mkdir(this.directory, { recursive: true });
   }
 
-  /** Every app in the working directory, newest first. Scanned at IDE start. */
-  async list() {
+  async list() {                                              // Lists every app in the working directory
     await this.ready();
     const entries = await readdir(this.directory);
     const apps = [];
@@ -42,17 +37,13 @@ export class AppStore {
     return apps.sort((a, b) => b.modified.localeCompare(a.modified));
   }
 
-  async read(fileName) {
+  async read(fileName) {                                      // Loads the app and returns all its content
     const file = this.resolve(fileName);
     const app = JSON.parse(await readFile(file, "utf8"));
     return { ...app, file: basename(file) };
   }
 
-  /**
-   * Save an app. The file name is fixed once: saving again overwrites it
-   * silently, so the developer can save as often as they like.
-   */
-  async write(rawName, { source = "", layout = {} } = {}) {
+  async write(rawName, { source = "", layout = {} } = {}) {   // Saves the app
     await this.ready();
 
     const fileName = fileNameFor(rawName);
@@ -73,18 +64,17 @@ export class AppStore {
     return { ...app, file: fileName };
   }
 
-  async remove(fileName) {
+  async remove(fileName) {                                    // Delete the app
     await unlink(this.resolve(fileName));
   }
 
-  /** Keep every path inside the working directory. */
-  resolve(fileName) {
+  resolve(fileName) {                                         // Finds the app path
     const safe = basename(String(fileName));
     if (!safe.endsWith(EXTENSION)) throw new Error(`not an app file: ${safe}`);
     return join(this.directory, safe);
   }
 
-  async readQuietly(file) {
+  async readQuietly(file) {                                   // File parsing
     try {
       return JSON.parse(await readFile(file, "utf8"));
     } catch {
@@ -93,11 +83,7 @@ export class AppStore {
   }
 }
 
-/**
- * The file an app name is saved under. Always ends in .iot, and never doubles
- * it: `x` -> `x.iot`, `x.ext` -> `x.ext.iot`, `x.iot` -> `x.iot`.
- */
-export function fileNameFor(rawName) {
+export function fileNameFor(rawName) {                        // Turns the name gave by the user in the file name
   const name = String(rawName).trim();
   const error = nameError(name);
   if (error) throw new Error(error);
@@ -105,12 +91,10 @@ export function fileNameFor(rawName) {
   return name.endsWith(EXTENSION) ? name : name + EXTENSION;
 }
 
-/** The app's display name: the file name without the .iot the IDE added. */
 export function appNameOf(fileName) {
   return fileName.endsWith(EXTENSION) ? fileName.slice(0, -EXTENSION.length) : fileName;
 }
 
-/** Why this app name is not allowed, or null if it is. */
 export function nameError(rawName) {
   const name = String(rawName ?? "").trim();
   if (name === "") return "an app needs a name";
